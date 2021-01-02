@@ -21,15 +21,15 @@ use erase_plan::ErasePlan;
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Mismatch during flash readback verification.")]
-    ReadbackError,
+    ReadbackError { address: u32, wrote: u8, read: u8 },
     #[error("Invalid manufacturer ID detected.")]
     InvalidManufacturer,
     #[error("Invalid SFDP header.")]
     InvalidSFDPHeader,
     #[error("Invalid parameter in SFDP parameter table.")]
     InvalidSFDPParams,
-    #[error("Address out of range for memory.")]
-    InvalidAddress,
+    #[error("Address out of range for memory: 0x{address:08X}.")]
+    InvalidAddress { address: u32 },
     #[error("No supported reset instruction is available.")]
     NoResetInstruction,
     #[error("No erase instruction has been specified.")]
@@ -456,15 +456,10 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         // Optionally do a readback to verify all written data.
         if verify {
             let programmed = self.read(start_addr, full_data.len())?;
-            if programmed == full_data {
-                Ok(())
-            } else {
-                log::error!("Readback verification failed. Check flash protection bits.");
-                Err(Error::ReadbackError)
-            }
-        } else {
-            Ok(())
+            self.verify_readback(start_addr, &full_data, &programmed)?;
         }
+
+        Ok(())
     }
 
     /// Program the attached flash with `data` starting at `address`.
@@ -489,15 +484,10 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         // Optionally do a readback to verify all written data.
         if verify {
             let programmed = self.read_progress(start_addr, full_data.len())?;
-            if programmed == full_data {
-                Ok(())
-            } else {
-                log::error!("Readback verification failed. Check flash protection bits.");
-                Err(Error::ReadbackError)
-            }
-        } else {
-            Ok(())
+            self.verify_readback(start_addr, &full_data, &programmed)?;
         }
+
+        Ok(())
     }
 
     /// Reset the attached flash.
@@ -895,22 +885,22 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
     ///   if the capacity is known.
     /// Returns either Err(Error::InvalidAddress) or Ok(()).
     fn check_address_length(&self, address: u32, length: usize) -> Result<()> {
-        log::debug!("Checking address={:08X} length={}", address, length);
+        log::trace!("Checking address={:08X} length={}", address, length);
         let start = address as usize;
         let end = (address as usize) + length - 1;
         let max_addr = 1 << (self.address_bytes * 8);
 
         if (end & (max_addr - 1)) < start {
             log::error!("Operation would wrap");
-            Err(Error::InvalidAddress)
+            Err(Error::InvalidAddress { address: end as u32 })
         } else if end > max_addr {
             log::error!("Operation would exceed largest address");
-            Err(Error::InvalidAddress)
+            Err(Error::InvalidAddress { address: end as u32 })
         } else {
             match self.capacity {
                 Some(capacity) if (end >= capacity) => {
                     log::error!("Operation would exceed flash capacity");
-                    Err(Error::InvalidAddress)
+                    Err(Error::InvalidAddress { address: end as u32 })
                 },
                 _ => Ok(()),
             }
@@ -1057,6 +1047,24 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         Ok(())
     }
 
+    /// Verify programmed data matches new flash contents.
+    ///
+    /// Returns Err::ReadbackError on mismatch.
+    fn verify_readback(&mut self, address: u32, data: &[u8], new_data: &[u8]) -> Result<()> {
+        let mismatch = data.iter().zip(new_data).enumerate().find(|(_, (a, b))| a != b);
+        match mismatch {
+            Some((idx, (a, b))) => {
+                let addr = address + idx as u32;
+                log::error!("Readback mismatch at 0x{:08X}: Wrote 0x{:02X}, read 0x{:02X}",
+                            addr, a, b);
+                if self.is_protected()? {
+                    log::error!("Flash write protection appears to be enabled, try unprotecting.");
+                }
+                Err(Error::ReadbackError { address: addr, wrote: *a, read: *b })
+            },
+            None => Ok(()),
+        }
+    }
 }
 
 /// Standard SPI flash command opcodes.
