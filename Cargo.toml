@@ -5,7 +5,7 @@ authors = ["Adam Greig <adam@adamgreig.com>"]
 edition = "2018"
 repository = "https://github.com/adamgreig/spi-flash-rs"
 license = "Apache-2.0 OR MIT"
-description = "SPI flash interface for std environments"
+description = "SPI flash memory interface crate"
 
 [dependencies]
 log = "0.4.11"
