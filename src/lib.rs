@@ -1,6 +1,10 @@
+// Copyright 2020, 2021 Adam Greig
+// Licensed under the Apache-2.0 and MIT licenses.
+
 //! spi-flash
-//! Copyright 2020, 2021 Adam Greig
-//! Licensed under the Apache-2.0 and MIT licenses.
+//!
+//! This crate provides an interface for common SPI flash memories,
+//! including discovering ID and parameters, reading, and writing.
 
 use std::convert::TryInto;
 use std::time::{Duration, Instant};
