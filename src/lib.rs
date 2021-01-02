@@ -3,7 +3,7 @@
 //! Licensed under the Apache-2.0 and MIT licenses.
 
 use std::convert::TryInto;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use indicatif::{ProgressBar, ProgressStyle};
 
 pub mod sfdp;
@@ -655,18 +655,14 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         let first_write = page_size - ((address as usize) % page_size);
         if first_write != page_size {
             log::trace!("Programming partial first page of {} bytes", first_write);
-            self.write_enable()?;
             self.page_program(address, &data[..first_write])?;
-            self.wait_while_busy()?;
             total_bytes += first_write;
             data = &data[first_write..];
             cb(total_bytes);
         }
 
         for page_data in data.chunks(page_size) {
-            self.write_enable()?;
             self.page_program(address + total_bytes as u32, page_data)?;
-            self.wait_while_busy()?;
             total_bytes += page_data.len();
             cb(total_bytes);
         }
@@ -693,7 +689,12 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         self.exchange(Command::PageProgram, &tx, 0)?;
         if let Some(params) = self.params {
             if let Some(timing) = params.timing {
-                std::thread::sleep(timing.page_prog_time_typ / 2);
+                // Only bother sleeping if the expected programming time is greater than 1ms,
+                // otherwise we'll likely have waited long enough just due to round-trip delays.
+                // We always poll the status register at least once to check write completion.
+                if timing.page_prog_time_typ > Duration::from_millis(1) {
+                    std::thread::sleep(timing.page_prog_time_typ / 2);
+                }
             }
         }
         self.wait_while_busy()?;
