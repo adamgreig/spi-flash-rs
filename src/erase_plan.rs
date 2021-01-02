@@ -27,7 +27,7 @@ impl ErasePlan {
                 let erase_end = erase_base + erase_size - 1;
                 let mut bytes = erase_size - (pos - erase_base);
                 if erase_end > end {
-                    bytes -= erase_end - end;
+                    bytes -= erase_end - end + 1;
                 }
                 log::trace!("  Candidate 0x{:02X} ({} bytes): base={} end={} bytes={}",
                             opcode, erase_size, erase_base, erase_end, bytes);
@@ -54,6 +54,9 @@ impl ErasePlan {
 #[test]
 fn test_erase_plan() {
     let insts = &[(4, 1, None), (32, 2, None), (64, 3, None)];
+    // Use a single 4kB erase to erase an aligned 4kB block.
+    assert_eq!(ErasePlan::new(insts, 0, 4).0,
+               vec![(1, 4, 0, None)]);
     // Use a single 64kB erase to erase an aligned 64kB block.
     assert_eq!(ErasePlan::new(insts, 0, 64).0,
                vec![(3, 64, 0, None)]);
