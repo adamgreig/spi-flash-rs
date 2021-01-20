@@ -263,7 +263,7 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
 
         // Read just SFDP header to get NPH first.
         let data = self.read_sfdp(0, 8)?;
-        let nph = data[5] as usize;
+        let nph = data[6] as usize + 1;
 
         // Re-read overall SFDP header including parameter headers.
         // Handle errors parsing the header by returning Ok(None),
