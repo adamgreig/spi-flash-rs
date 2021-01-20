@@ -38,8 +38,6 @@ pub enum Error {
     NoResetInstruction,
     #[error("No erase instruction has been specified.")]
     NoEraseInstruction,
-    #[error("No page size has been specified.")]
-    NoPageSize,
 
     #[error(transparent)]
     Access(#[from] anyhow::Error),
@@ -634,8 +632,9 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         let page_size = match self.page_size {
             Some(page_size) => page_size,
             None => {
-                log::error!("No page size available. Set one with `set_page_size()`.");
-                return Err(Error::NoPageSize);
+                log::info!("Page size not known. Using a default of 256 bytes.");
+                log::info!("Set a specific page size using `set_page_size()`.");
+                256
             }
         };
 
