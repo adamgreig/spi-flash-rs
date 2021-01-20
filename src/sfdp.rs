@@ -342,7 +342,7 @@ impl FlashParams {
         let erase_size_1 = bits!(dwords[7], 8, 0);
         let erase_size_2 = bits!(dwords[7], 8, 16);
         let erase_size_3 = bits!(dwords[8], 8, 0);
-        let erase_size_4 = bits!(dwords[9], 8, 16);
+        let erase_size_4 = bits!(dwords[8], 8, 16);
         if erase_size_1 != 0 {
             let opcode = bits!(dwords[7], 8, 8) as u8;
             if opcode != 0 {
