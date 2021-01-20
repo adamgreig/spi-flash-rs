@@ -958,21 +958,12 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
     }
 
     /// Read all the bytes before `address` in memory which will be erased by `plan`.
-    ///
-    /// If all those bytes are 0xFF, returns an empty Vec instead, as they won't be changed
-    /// by the erase operation.
     fn read_erase_preamble(&mut self, address: u32, plan: &ErasePlan) -> Result<Vec<u8>> {
         let base = plan.0[0].2;
         let len = address - base;
         if len > 0 {
             log::debug!("Reading erase preamble: base={} len={}", base, len);
-            let data = self.read(base, len as usize)?;
-            // If all the preamble is already 0xFF, there's no point reprogramming it.
-            if data.iter().all(|x| *x == 0xFF) {
-                Ok(Vec::new())
-            } else {
-                Ok(data)
-            }
+            self.read(base, len as usize)
         } else {
             Ok(Vec::new())
         }
