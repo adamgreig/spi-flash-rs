@@ -9,8 +9,12 @@ description = "SPI flash memory interface crate"
 
 [dependencies]
 log = "0.4.11"
-anyhow = "1.0.34"
-thiserror = "1.0.22"
 num_enum = "0.5.1"
 jep106 = "0.2.4"
-indicatif = "0.15.0"
+anyhow = { version="1.0.34", optional=true }
+thiserror = { version="1.0.22", optional=true }
+indicatif = { version="0.15.0", optional=true }
+
+[features]
+default = ["std"]
+std = ["thiserror", "anyhow", "indicatif"]
