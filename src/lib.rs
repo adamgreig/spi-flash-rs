@@ -93,7 +93,8 @@ pub trait FlashAccess {
     /// Returns the received data.
     fn exchange(&mut self, data: &[u8]) -> AnyhowResult<Vec<u8>>;
 
-    fn sleep(&mut self, dur: Duration);
+    /// Wait for at least `dur`
+    fn delay(&mut self, dur: Duration);
 }
 
 /// SPI Flash.
@@ -723,7 +724,7 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
                 // otherwise we'll likely have waited long enough just due to round-trip delays.
                 // We always poll the status register at least once to check write completion.
                 if timing.page_prog_time_typ > Duration::from_millis(1) {
-                    self.access.sleep(timing.page_prog_time_typ / 2);
+                    self.access.delay(timing.page_prog_time_typ / 2);
                 }
             }
         }
@@ -1056,7 +1057,7 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
             self.write_enable()?;
             self.write(*opcode, &addr)?;
             if let Some(duration) = duration {
-                self.access.sleep(*duration / 2);
+                self.access.delay(*duration / 2);
             }
             self.wait_while_busy()?;
             total_erased += size;
