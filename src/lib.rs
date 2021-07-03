@@ -63,8 +63,10 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// in `data`, then returns all the received bytes. If it provides a performance optimisation,
 /// providers may also implement `write()`, which does not require the received data.
 pub trait FlashAccess {
+    type Error;
+
     /// Assert CS, write all bytes in `data` to the SPI bus, then de-assert CS.
-    fn write(&mut self, data: &[u8]) -> Result<()> {
+    fn write(&mut self, data: &[u8]) -> core::result::Result<(), Self::Error> {
         // Default implementation uses `exchange()` and ignores the result data.
         self.exchange(data)?;
         Ok(())
@@ -73,7 +75,7 @@ pub trait FlashAccess {
     /// Assert CS, write all bytes in `data` while capturing received data, then de-assert CS.
     ///
     /// Returns the received data.
-    fn exchange(&mut self, data: &[u8]) -> Result<Vec<u8>>;
+    fn exchange(&mut self, data: &[u8]) -> core::result::Result<Vec<u8>, Self::Error>;
 
     /// Wait for at least `dur`
     fn delay(&mut self, dur: Duration);
@@ -110,7 +112,7 @@ pub struct Flash<'a, A: FlashAccess> {
     erase_opcode: u8,
 }
 
-impl<'a, A: FlashAccess> Flash<'a, A> {
+impl<'a, A: FlashAccess> Flash<'a, A> where Error: From<A::Error> {
     #[cfg(feature = "std")]
     const DATA_PROGRESS_TPL: &'static str =
         " {msg} [{bar:40}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
