@@ -30,14 +30,8 @@ impl ErasePlan {
                 if erase_end > end {
                     bytes -= erase_end - end + 1;
                 }
-                log::trace!(
-                    "  Candidate 0x{:02X} ({} bytes): base={} end={} bytes={}",
-                    opcode,
-                    erase_size,
-                    erase_base,
-                    erase_end,
-                    bytes
-                );
+                log::trace!("  Candidate 0x{:02X} ({} bytes): base={} end={} bytes={}",
+                            opcode, erase_size, erase_base, erase_end, bytes);
                 if bytes > candidate.0 || (bytes == candidate.0 && *erase_size < candidate.1) {
                     candidate = (bytes, *erase_size, *opcode, erase_base, *duration);
                 }
@@ -63,23 +57,24 @@ impl ErasePlan {
 fn test_erase_plan() {
     let insts = &[(4, 1, None), (32, 2, None), (64, 3, None)];
     // Use a single 4kB erase to erase an aligned 4kB block.
-    assert_eq!(ErasePlan::new(insts, 0, 4).0, alloc::vec![(1, 4, 0, None)]);
+    assert_eq!(ErasePlan::new(insts, 0, 4).0,
+               alloc::vec![(1, 4, 0, None)]);
     // Use a single 64kB erase to erase an aligned 64kB block.
-    assert_eq!(ErasePlan::new(insts, 0, 64).0, alloc::vec![(3, 64, 0, None)]);
+    assert_eq!(ErasePlan::new(insts, 0, 64).0,
+               alloc::vec![(3, 64, 0, None)]);
     // Use three 64kB erases to erase an aligned 192kB block.
-    assert_eq!(
-        ErasePlan::new(insts, 0, 192).0,
-        alloc::vec![(3, 64, 0, None), (3, 64, 64, None), (3, 64, 128, None)]
-    );
+    assert_eq!(ErasePlan::new(insts, 0, 192).0,
+               alloc::vec![(3, 64, 0, None), (3, 64, 64, None), (3, 64, 128, None)]);
     // Use 64kB followed by 32kB to erase an aligned 70kB block.
-    assert_eq!(ErasePlan::new(insts, 0, 70).0, alloc::vec![(3, 64, 0, None), (2, 32, 64, None)]);
+    assert_eq!(ErasePlan::new(insts, 0, 70).0,
+               alloc::vec![(3, 64, 0, None), (2, 32, 64, None)]);
     // Use 64kB followed by 4kB to erase an aligned 66kB block.
-    assert_eq!(ErasePlan::new(insts, 0, 66).0, alloc::vec![(3, 64, 0, None), (1, 4, 64, None)]);
+    assert_eq!(ErasePlan::new(insts, 0, 66).0,
+               alloc::vec![(3, 64, 0, None), (1, 4, 64, None)]);
     // Use 4kB followed by 64kB to erase a misaligned 64kB block.
-    assert_eq!(ErasePlan::new(insts, 62, 64).0, alloc::vec![(1, 4, 60, None), (3, 64, 64, None)]);
+    assert_eq!(ErasePlan::new(insts, 62, 64).0,
+               alloc::vec![(1, 4, 60, None), (3, 64, 64, None)]);
     // Use a 4kB, 64kB, 4kB to erase a misaligned 68kB block.
-    assert_eq!(
-        ErasePlan::new(insts, 62, 68).0,
-        alloc::vec![(1, 4, 60, None), (3, 64, 64, None), (1, 4, 128, None)]
-    );
+    assert_eq!(ErasePlan::new(insts, 62, 68).0,
+               alloc::vec![(1, 4, 60, None), (3, 64, 64, None), (1, 4, 128, None)]);
 }
