@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 * Make `spi-flash` `no-std` compatible (still requires `alloc`)
+* `FlashAccess` trait methods now return custom `Result` instead of
+  `anyhow::Result`; implementors should usually return
+  `spi_flash::Error::Access` wrapping their own error.
 
 ## [v0.2.2] - 2021-01-20
 

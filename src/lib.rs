@@ -30,50 +30,32 @@ pub use id::FlashID;
 use sfdp::SFDPHeader;
 use erase_plan::ErasePlan;
 
-#[cfg(feature = "std")]
-#[derive(thiserror::Error, Debug)]
+#[cfg_attr(feature="std", derive(thiserror::Error, Debug))]
 pub enum Error {
-    #[error("Mismatch during flash readback verification.")]
+    #[cfg_attr(feature="std", error("Mismatch during flash readback verification."))]
     ReadbackError { address: u32, wrote: u8, read: u8 },
-    #[error("Invalid manufacturer ID detected.")]
+    #[cfg_attr(feature="std", error("Invalid manufacturer ID detected."))]
     InvalidManufacturer,
-    #[error("Invalid SFDP header.")]
+    #[cfg_attr(feature="std", error("Invalid SFDP header."))]
     InvalidSFDPHeader,
-    #[error("Invalid parameter in SFDP parameter table.")]
+    #[cfg_attr(feature="std", error("Invalid parameter in SFDP parameter table."))]
     InvalidSFDPParams,
-    #[error("Address out of range for memory: 0x{address:08X}.")]
+    #[cfg_attr(feature="std", error("Address out of range for memory: 0x{address:08X}."))]
     InvalidAddress { address: u32 },
-    #[error("No supported reset instruction is available.")]
+    #[cfg_attr(feature="std", error("No supported reset instruction is available."))]
     NoResetInstruction,
-    #[error("No erase instruction has been specified.")]
+    #[cfg_attr(feature="std", error("No erase instruction has been specified."))]
     NoEraseInstruction,
 
+    #[cfg(feature="std")]
     #[error(transparent)]
     Access(#[from] anyhow::Error),
-}
-#[cfg(not(feature = "std"))]
-#[derive(Debug)]
-pub enum Error<E> {
-    ReadbackError { address: u32, wrote: u8, read: u8 },
-    InvalidManufacturer,
-    InvalidSFDPHeader,
-    InvalidSFDPParams,
-    InvalidAddress { address: u32 },
-    NoResetInstruction,
-    NoEraseInstruction,
 
-    Access(E),
+    #[cfg(not(feature = "std"))]
+    Access,
 }
 
-#[cfg(feature = "std")]
-pub type Result<T> = std::result::Result<T, Error>;
-#[cfg(not(feature = "std"))]
-pub type Result<T> = core::result::Result<T, Error<()>>;
-
-#[cfg(feature = "std")]
-pub type AnyhowResult<T> = anyhow::Result<T>;
-#[cfg(not(feature = "std"))]
-pub type AnyhowResult<T> = Result<T>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 /// Trait for objects which provide access to SPI flash.
 ///
@@ -82,7 +64,7 @@ pub type AnyhowResult<T> = Result<T>;
 /// providers may also implement `write()`, which does not require the received data.
 pub trait FlashAccess {
     /// Assert CS, write all bytes in `data` to the SPI bus, then de-assert CS.
-    fn write(&mut self, data: &[u8]) -> AnyhowResult<()> {
+    fn write(&mut self, data: &[u8]) -> Result<()> {
         // Default implementation uses `exchange()` and ignores the result data.
         self.exchange(data)?;
         Ok(())
@@ -91,7 +73,7 @@ pub trait FlashAccess {
     /// Assert CS, write all bytes in `data` while capturing received data, then de-assert CS.
     ///
     /// Returns the received data.
-    fn exchange(&mut self, data: &[u8]) -> AnyhowResult<Vec<u8>>;
+    fn exchange(&mut self, data: &[u8]) -> Result<Vec<u8>>;
 
     /// Wait for at least `dur`
     fn delay(&mut self, dur: Duration);
