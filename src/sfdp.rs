@@ -1,5 +1,6 @@
-use std::time::Duration;
 use crate::{Error, Result};
+use alloc::vec::Vec;
+use core::time::Duration;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SFDPHeader {
@@ -164,13 +165,13 @@ pub struct SFDPEraseInst {
     /// Size in bytes of erase instruction.
     pub size: u32,
     /// Typical erase time, if known.
-    pub time_typ: Option<std::time::Duration>,
+    pub time_typ: Option<Duration>,
     /// Maximum erase time, if known.
-    pub time_max: Option<std::time::Duration>,
+    pub time_max: Option<Duration>,
 }
 
-impl std::fmt::Display for SFDPEraseInst {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for SFDPEraseInst {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Opcode 0x{:02X}: {} bytes", self.opcode, self.size)?;
         if let Some(typ) = self.time_typ {
             write!(f, ", typ {:?}", typ)?;
@@ -521,8 +522,8 @@ impl FlashParams {
     }
 }
 
-impl std::fmt::Display for FlashParams {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl core::fmt::Display for FlashParams {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         writeln!(f, "SFDP JEDEC Basic Flash Parameter Table v{}.{}",
                self.version_major, self.version_minor)?;
         writeln!(f, "  Density: {} bits ({} KiB)", self.density, self.capacity_bytes() / 1024)?;
@@ -573,4 +574,3 @@ impl std::fmt::Display for FlashParams {
         Ok(())
     }
 }
-

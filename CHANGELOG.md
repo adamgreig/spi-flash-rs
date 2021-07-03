@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+* Make `spi-flash` `no-std` compatible (still requires `alloc`)
+
 ## [v0.2.2] - 2021-01-20
 
 * Fix reading v1.0 SFDP table.

@@ -1,4 +1,5 @@
-use std::time::Duration;
+use alloc::vec::Vec;
+use core::time::Duration;
 
 /// Erase plan of (opcode, size, base address, typical duration) to erase a range of memory.
 #[derive(Clone, Debug)]
@@ -46,6 +47,7 @@ impl ErasePlan {
         ErasePlan(plan)
     }
 
+    #[cfg(feature = "std")]
     pub fn total_size(&self) -> usize {
         self.0.iter().map(|x| x.1).sum()
     }
@@ -56,23 +58,23 @@ fn test_erase_plan() {
     let insts = &[(4, 1, None), (32, 2, None), (64, 3, None)];
     // Use a single 4kB erase to erase an aligned 4kB block.
     assert_eq!(ErasePlan::new(insts, 0, 4).0,
-               vec![(1, 4, 0, None)]);
+               alloc::vec![(1, 4, 0, None)]);
     // Use a single 64kB erase to erase an aligned 64kB block.
     assert_eq!(ErasePlan::new(insts, 0, 64).0,
-               vec![(3, 64, 0, None)]);
+               alloc::vec![(3, 64, 0, None)]);
     // Use three 64kB erases to erase an aligned 192kB block.
     assert_eq!(ErasePlan::new(insts, 0, 192).0,
-               vec![(3, 64, 0, None), (3, 64, 64, None), (3, 64, 128, None)]);
+               alloc::vec![(3, 64, 0, None), (3, 64, 64, None), (3, 64, 128, None)]);
     // Use 64kB followed by 32kB to erase an aligned 70kB block.
     assert_eq!(ErasePlan::new(insts, 0, 70).0,
-               vec![(3, 64, 0, None), (2, 32, 64, None)]);
+               alloc::vec![(3, 64, 0, None), (2, 32, 64, None)]);
     // Use 64kB followed by 4kB to erase an aligned 66kB block.
     assert_eq!(ErasePlan::new(insts, 0, 66).0,
-               vec![(3, 64, 0, None), (1, 4, 64, None)]);
+               alloc::vec![(3, 64, 0, None), (1, 4, 64, None)]);
     // Use 4kB followed by 64kB to erase a misaligned 64kB block.
     assert_eq!(ErasePlan::new(insts, 62, 64).0,
-               vec![(1, 4, 60, None), (3, 64, 64, None)]);
+               alloc::vec![(1, 4, 60, None), (3, 64, 64, None)]);
     // Use a 4kB, 64kB, 4kB to erase a misaligned 68kB block.
     assert_eq!(ErasePlan::new(insts, 62, 68).0,
-               vec![(1, 4, 60, None), (3, 64, 64, None), (1, 4, 128, None)]);
+               alloc::vec![(1, 4, 60, None), (3, 64, 64, None), (1, 4, 128, None)]);
 }
