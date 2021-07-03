@@ -53,7 +53,7 @@ impl ErasePlan {
         ErasePlan(plan)
     }
 
-    #[allow(dead_code)]
+    #[cfg(feature = "std")]
     pub fn total_size(&self) -> usize {
         self.0.iter().map(|x| x.1).sum()
     }

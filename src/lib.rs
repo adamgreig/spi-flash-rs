@@ -128,10 +128,10 @@ pub struct Flash<'a, A: FlashAccess> {
 }
 
 impl<'a, A: FlashAccess> Flash<'a, A> {
-    #[allow(dead_code)]
+    #[cfg(feature = "std")]
     const DATA_PROGRESS_TPL: &'static str =
         " {msg} [{bar:40}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
-    #[allow(dead_code)]
+    #[cfg(feature = "std")]
     const DATA_PROGRESS_CHARS: &'static str = "=> ";
 
     /// Create a new Flash instance using the given FlashAccess provider.
