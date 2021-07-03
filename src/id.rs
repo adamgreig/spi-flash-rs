@@ -1,5 +1,3 @@
-use crate::alloc::string::ToString;
-
 /// Store the ID read off an SPI flash memory.
 ///
 /// The manufacturer ID and (long, 16-bit) device ID are read using the 0x9F command,
@@ -18,6 +16,7 @@ pub struct FlashID {
 
 impl FlashID {
     /// Look up a manufacturer name from the JEDEC ID.
+    #[cfg(feature = "std")]
     pub fn manufacturer_name(&self) -> Option<&'static str> {
         let (bank, id) = (self.manufacturer_bank, self.manufacturer_id & 0x7F);
         match jep106::JEP106Code::new(bank, id).get() {
@@ -31,6 +30,7 @@ impl FlashID {
     }
 }
 
+#[cfg(feature = "std")]
 impl core::fmt::Display for FlashID {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let mfn = match self.manufacturer_name() {
