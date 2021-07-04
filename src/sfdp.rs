@@ -1,6 +1,5 @@
 use crate::{Error, Result};
 use alloc::vec::Vec;
-use core::time::Duration;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SFDPHeader {
@@ -172,18 +171,18 @@ pub struct SFDPEraseInst {
     /// Size in bytes of erase instruction.
     pub size: u32,
     /// Typical erase time, if known.
-    pub time_typ: Option<Duration>,
+    pub time_typ_ms: Option<u32>,
     /// Maximum erase time, if known.
-    pub time_max: Option<Duration>,
+    pub time_max_ms: Option<u32>,
 }
 
 impl core::fmt::Display for SFDPEraseInst {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Opcode 0x{:02X}: {} bytes", self.opcode, self.size)?;
-        if let Some(typ) = self.time_typ {
+        if let Some(typ) = self.time_typ_ms {
             write!(f, ", typ {:?}", typ)?;
         }
-        if let Some(max) = self.time_max {
+        if let Some(max) = self.time_max_ms {
             write!(f, ", max {:?}", max)?;
         }
         Ok(())
@@ -233,21 +232,21 @@ impl SFDPStatus1Volatility {
 #[derive(Copy, Clone, Debug)]
 pub struct SFDPTiming {
     /// Typical time to erase the entire chip, if known.
-    pub chip_erase_time_typ: Duration,
+    pub chip_erase_time_typ_ms: u32,
     /// Maximum time to erase the entire chip, if known.
-    pub chip_erase_time_max: Duration,
+    pub chip_erase_time_max_ms: u32,
     /// Typical time to program the first byte in a sequence, if known.
-    pub first_byte_prog_time_typ: Duration,
+    pub first_byte_prog_time_typ_ms: u32,
     /// Maximum time to program the first byte in a sequence, if known.
-    pub first_byte_prog_time_max: Duration,
+    pub first_byte_prog_time_max_ms: u32,
     /// Typical time to program each successive byte in a sequence, if known.
-    pub succ_byte_prog_time_typ: Duration,
+    pub succ_byte_prog_time_typ_ms: u32,
     /// Maximum time to program each successive byte in a sequence, if known.
-    pub succ_byte_prog_time_max: Duration,
+    pub succ_byte_prog_time_max_ms: u32,
     /// Typical time to program a full page, if known.
-    pub page_prog_time_typ: Duration,
+    pub page_prog_time_typ_ms: u32,
     /// Maximum time to program a full page, if known.
-    pub page_prog_time_max: Duration,
+    pub page_prog_time_max_ms: u32,
 }
 
 /// Bitfield extraction helper macro.
@@ -357,8 +356,8 @@ impl FlashParams {
                 erase_insts[0] = Some(SFDPEraseInst {
                     opcode,
                     size: 1 << erase_size_1,
-                    time_typ: None,
-                    time_max: None,
+                    time_typ_ms: None,
+                    time_max_ms: None,
                 });
             }
         }
@@ -368,8 +367,8 @@ impl FlashParams {
                 erase_insts[1] = Some(SFDPEraseInst {
                     opcode,
                     size: 1 << erase_size_2,
-                    time_typ: None,
-                    time_max: None,
+                    time_typ_ms: None,
+                    time_max_ms: None,
                 });
             }
         }
@@ -379,8 +378,8 @@ impl FlashParams {
                 erase_insts[2] = Some(SFDPEraseInst {
                     opcode,
                     size: 1 << erase_size_3,
-                    time_typ: None,
-                    time_max: None,
+                    time_typ_ms: None,
+                    time_max_ms: None,
                 });
             }
         }
@@ -390,8 +389,8 @@ impl FlashParams {
                 erase_insts[3] = Some(SFDPEraseInst {
                     opcode,
                     size: 1 << erase_size_4,
-                    time_typ: None,
-                    time_max: None,
+                    time_typ_ms: None,
+                    time_max_ms: None,
                 });
             }
         }
@@ -426,26 +425,26 @@ impl FlashParams {
         if let Some(inst) = self.erase_insts[0].as_mut() {
             let typ = bits!(dwords[9], 7, 4);
             let (typ, max) = Self::sector_erase_durations(typ, erase_scale);
-            inst.time_typ = Some(typ);
-            inst.time_max = Some(max);
+            inst.time_typ_ms = Some(typ);
+            inst.time_max_ms = Some(max);
         }
         if let Some(inst) = self.erase_insts[1].as_mut() {
             let typ = bits!(dwords[9], 7, 11);
             let (typ, max) = Self::sector_erase_durations(typ, erase_scale);
-            inst.time_typ = Some(typ);
-            inst.time_max = Some(max);
+            inst.time_typ_ms = Some(typ);
+            inst.time_max_ms = Some(max);
         }
         if let Some(inst) = self.erase_insts[2].as_mut() {
             let typ = bits!(dwords[9], 7, 18);
             let (typ, max) = Self::sector_erase_durations(typ, erase_scale);
-            inst.time_typ = Some(typ);
-            inst.time_max = Some(max);
+            inst.time_typ_ms = Some(typ);
+            inst.time_max_ms = Some(max);
         }
         if let Some(inst) = self.erase_insts[3].as_mut() {
             let typ = bits!(dwords[9], 7, 25);
             let (typ, max) = Self::sector_erase_durations(typ, erase_scale);
-            inst.time_typ = Some(typ);
-            inst.time_max = Some(max);
+            inst.time_typ_ms = Some(typ);
+            inst.time_max_ms = Some(max);
         }
 
         // 11th DWORD: chip erase and programming timings, page size.
@@ -463,14 +462,14 @@ impl FlashParams {
         let (page_prog_time_typ, page_prog_time_max) =
             Self::page_program_duration(typ, program_scale);
         self.timing = Some(SFDPTiming {
-            chip_erase_time_typ,
-            chip_erase_time_max,
-            first_byte_prog_time_typ,
-            first_byte_prog_time_max,
-            succ_byte_prog_time_typ,
-            succ_byte_prog_time_max,
-            page_prog_time_typ,
-            page_prog_time_max,
+            chip_erase_time_typ_ms: chip_erase_time_typ,
+            chip_erase_time_max_ms: chip_erase_time_max,
+            first_byte_prog_time_typ_ms: first_byte_prog_time_typ,
+            first_byte_prog_time_max_ms: first_byte_prog_time_max,
+            succ_byte_prog_time_typ_ms: succ_byte_prog_time_typ,
+            succ_byte_prog_time_max_ms: succ_byte_prog_time_max,
+            page_prog_time_typ_ms: page_prog_time_typ,
+            page_prog_time_max_ms: page_prog_time_max,
         });
         self.page_size = Some(1 << bits!(dwords[10], 4, 4));
 
@@ -494,16 +493,17 @@ impl FlashParams {
     /// Convert SFPD sector erase time to typical and maximum Duration.
     ///
     /// Uses scale factors of 1ms, 16ms, 128ms, and 1s.
-    fn sector_erase_durations(typ: u32, max_scale: u32) -> (Duration, Duration) {
+    fn sector_erase_durations(typ: u32, max_scale: u32) -> (u32, u32) {
         let scale = match bits!(typ, 2, 5) {
-            0b00 => Duration::from_millis(1),
-            0b01 => Duration::from_millis(16),
-            0b10 => Duration::from_millis(128),
-            0b11 => Duration::from_secs(1),
+            0b00 => 1,
+            0b01 => 16,
+            0b10 => 128,
+            0b11 => 1000,
             _ => unreachable!(),
         };
         let count = bits!(typ, 5, 0);
         let typ = (count + 1) * scale;
+        //TODO check for overflow?
         let max = 2 * (max_scale + 1) * typ;
         (typ, max)
     }
@@ -511,16 +511,17 @@ impl FlashParams {
     /// Convert SFPD chip erase time to typical and maximum Durations.
     ///
     /// Uses scale factors of 16ms, 256ms, 4s, and 64s.
-    fn chip_erase_duration(typ: u32, max_scale: u32) -> (Duration, Duration) {
+    fn chip_erase_duration(typ: u32, max_scale: u32) -> (u32, u32) {
         let scale = match bits!(typ, 2, 5) {
-            0b00 => Duration::from_millis(16),
-            0b01 => Duration::from_millis(256),
-            0b10 => Duration::from_secs(4),
-            0b11 => Duration::from_secs(64),
+            0b00 => 16,
+            0b01 => 256,
+            0b10 => 4000,
+            0b11 => 64000,
             _ => unreachable!(),
         };
         let count = bits!(typ, 5, 0);
         let typ = (count + 1) * scale;
+        //TODO check for overflow?
         let max = 2 * (max_scale + 1) * typ;
         (typ, max)
     }
@@ -536,6 +537,7 @@ impl FlashParams {
         };
         let count = bits!(typ, 4, 0);
         let typ = (count + 1) * scale;
+        //TODO check for overflow?
         let max = 2 * (max_scale + 1) * typ;
         (typ, max)
     }
@@ -551,6 +553,7 @@ impl FlashParams {
         };
         let count = bits!(typ, 5, 0);
         let typ = (count + 1) * scale;
+        //TODO check for overflow?
         let max = 2 * (max_scale + 1) * typ;
         (typ, max)
     }
@@ -588,22 +591,22 @@ impl core::fmt::Display for FlashParams {
             writeln!(
                 f,
                 "    Chip erase: typ {:?}, max {:?}",
-                timing.chip_erase_time_typ, timing.chip_erase_time_max
+                timing.chip_erase_time_typ_ms, timing.chip_erase_time_max_ms
             )?;
             writeln!(
                 f,
                 "    First byte program: typ {:?}, max {:?}",
-                timing.first_byte_prog_time_typ, timing.first_byte_prog_time_max
+                timing.first_byte_prog_time_typ_ms, timing.first_byte_prog_time_max_ms
             )?;
             writeln!(
                 f,
                 "    Subsequent byte program: typ {:?}, max {:?}",
-                timing.succ_byte_prog_time_typ, timing.succ_byte_prog_time_max
+                timing.succ_byte_prog_time_typ_ms, timing.succ_byte_prog_time_max_ms
             )?;
             writeln!(
                 f,
                 "    Page program: typ {:?}, max {:?}",
-                timing.page_prog_time_typ, timing.page_prog_time_max
+                timing.page_prog_time_typ_ms, timing.page_prog_time_max_ms
             )?;
         }
         if let Some(page_size) = self.page_size {

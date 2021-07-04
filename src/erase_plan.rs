@@ -1,12 +1,11 @@
 use alloc::vec::Vec;
-use core::time::Duration;
 
 /// Erase plan of (opcode, size, base address, typical duration) to erase a range of memory.
 #[derive(Clone, Debug)]
-pub(crate) struct ErasePlan(pub Vec<(u8, usize, u32, Option<Duration>)>);
+pub(crate) struct ErasePlan(pub Vec<(u8, usize, u32, Option<u32>)>);
 
 impl ErasePlan {
-    pub fn new(insts: &[(usize, u8, Option<Duration>)], start: usize, length: usize) -> Self {
+    pub fn new(insts: &[(usize, u8, Option<u32>)], start: usize, length: usize) -> Self {
         log::trace!("Creating erase plan, start={} length={}", start, length);
         let mut plan = Vec::new();
 

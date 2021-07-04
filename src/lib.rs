@@ -12,7 +12,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 use core::convert::TryInto;
-use core::time::Duration;
+// use core::time::Duration;
 #[cfg(feature = "std")]
 use indicatif::{ProgressBar, ProgressStyle};
 #[cfg(feature = "std")]
@@ -89,16 +89,16 @@ pub trait FlashAccess {
     /// Returns the received data.
     fn exchange(&mut self, data: &[u8]) -> core::result::Result<Vec<u8>, Self::Error>;
 
-    /// Wait for at least `duration`.
+    /// Wait for at least `ms` milliseconds.
     ///
     /// This delay is advisory and reduces polling traffic based on known
     /// typical flash instruction times, so may be left unimplemented.
     ///
     /// The default implementation uses std::thread::delay on std,
     /// and is a no-op on no_std.
-    fn delay(&mut self, duration: Duration) {
+    fn delay_ms(&mut self, ms: u32) {
         #[cfg(feature = "std")]
-        std::thread::sleep(duration);
+        std::thread::sleep(std::time::Duration::from_millis(ms.into()));
     }
 }
 
@@ -454,9 +454,9 @@ where
     /// otherwise the progress bar is drawn as a spinner.
     #[cfg(feature = "std")]
     pub fn erase_progress(&mut self) -> Result<()> {
-        let time = self.params.map(|p| p.timing.map(|t| t.chip_erase_time_typ));
+        let time = self.params.map(|p| p.timing.map(|t| t.chip_erase_time_typ_ms));
         let pb = if let Some(Some(time)) = time {
-            ProgressBar::new(time.as_millis() as u64).with_style(
+            ProgressBar::new(time as u64).with_style(
                 ProgressStyle::default_bar()
                     .template(" {msg} [{bar:40}] {elapsed} < {eta}")
                     .progress_chars("=> "),
@@ -747,8 +747,8 @@ where
                 // Only bother sleeping if the expected programming time is greater than 1ms,
                 // otherwise we'll likely have waited long enough just due to round-trip delays.
                 // We always poll the status register at least once to check write completion.
-                if timing.page_prog_time_typ > Duration::from_millis(1) {
-                    self.access.delay(timing.page_prog_time_typ / 2);
+                if timing.page_prog_time_typ_ms > 1 {
+                    self.access.delay_ms(timing.page_prog_time_typ_ms / 2);
                 }
             }
         }
@@ -997,7 +997,7 @@ where
             if params.erase_insts.iter().any(|&inst| inst.is_some()) {
                 log::trace!("Using SFDP erase instructions.");
                 for inst in params.erase_insts.iter().flatten() {
-                    insts.push((inst.size as usize, inst.opcode, inst.time_typ));
+                    insts.push((inst.size as usize, inst.opcode, inst.time_typ_ms));
                 }
             } else if params.legacy_4kb_erase_supported {
                 log::trace!("No erase instructions in SFDP, using legacy 4kB erase.");
@@ -1094,7 +1094,7 @@ where
             self.write_enable()?;
             self.write(*opcode, &addr)?;
             if let Some(duration) = duration {
-                self.access.delay(*duration / 2);
+                self.access.delay_ms(*duration / 2);
             }
             self.wait_while_busy()?;
             total_erased += size;
