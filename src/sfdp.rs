@@ -25,8 +25,11 @@ impl SFDPHeader {
             let nph = data[6] as usize + 1;
             log::debug!("Read SFDP header, NPH={} MAJOR={} MINOR={}", nph, major, minor);
             if data.len() < (nph + 1) * 8 {
-                log::error!("Did not read enough SFDP bytes: got {}, needed {}",
-                            data.len(), (nph + 1) * 8);
+                log::error!(
+                    "Did not read enough SFDP bytes: got {}, needed {}",
+                    data.len(),
+                    (nph + 1) * 8
+                );
                 Err(Error::InvalidSFDPHeader)
             } else {
                 let params = data[8..].chunks(8).map(SFDPParameterHeader::from_bytes).collect();
@@ -53,9 +56,15 @@ impl SFDPParameterHeader {
         let major = data[2];
         let plen = data[3] as usize;
         let ptp = u32::from_be_bytes([0, data[6], data[5], data[4]]);
-        log::debug!("Read JEDEC parameter header, plen={} major={} minor={} \
+        log::debug!(
+            "Read JEDEC parameter header, plen={} major={} minor={} \
                      ID=0x{:04X} PTP=0x{:06X}",
-                    plen, major, minor, parameter_id, ptp);
+            plen,
+            major,
+            minor,
+            parameter_id,
+            ptp
+        );
         SFDPParameterHeader { plen, major, minor, parameter_id, ptp }
     }
 }
@@ -113,7 +122,6 @@ pub struct FlashParams {
     // Omitted: Suspend/Resume support and instructions.
 
     // Omitted: Deep powerdown support and instructions.
-
     /// If true, polling busy status via the flag status register is supported.
     /// Instruction 0x70 reads the flag register, where bit 7 is 0 if busy and 1 if ready.
     pub busy_poll_flag: Option<bool>,
@@ -122,7 +130,6 @@ pub struct FlashParams {
     pub busy_poll_status: Option<bool>,
 
     // Omitted: instructions for entering/exiting 4-byte address mode.
-
     /// If true, the device may be reset using instruction 0xF0.
     pub reset_inst_f0: Option<bool>,
     /// If true, the device may be reset using instruction 0x66 followed by 0x99.
@@ -152,7 +159,7 @@ impl SFDPAddressBytes {
             0b00 => SFDPAddressBytes::Three,
             0b01 => SFDPAddressBytes::ThreeOrFour,
             0b10 => SFDPAddressBytes::Four,
-            _    => SFDPAddressBytes::Reserved,
+            _ => SFDPAddressBytes::Reserved,
         }
     }
 }
@@ -247,7 +254,9 @@ pub struct SFDPTiming {
 ///
 /// `bits!(word, length, offset)` extracts `length` number of bits at offset `offset`.
 macro_rules! bits {
-    ($d:expr, $n:expr, $o:expr) => {($d & (((1 << $n) - 1) << $o)) >> $o}
+    ($d:expr, $n:expr, $o:expr) => {
+        ($d & (((1 << $n) - 1) << $o)) >> $o
+    };
 }
 
 impl FlashParams {
@@ -346,7 +355,10 @@ impl FlashParams {
             let opcode = bits!(dwords[7], 8, 8) as u8;
             if opcode != 0 {
                 erase_insts[0] = Some(SFDPEraseInst {
-                    opcode, size: 1 << erase_size_1, time_typ: None, time_max: None,
+                    opcode,
+                    size: 1 << erase_size_1,
+                    time_typ: None,
+                    time_max: None,
                 });
             }
         }
@@ -354,7 +366,10 @@ impl FlashParams {
             let opcode = bits!(dwords[7], 8, 24) as u8;
             if opcode != 0 {
                 erase_insts[1] = Some(SFDPEraseInst {
-                    opcode, size: 1 << erase_size_2, time_typ: None, time_max: None,
+                    opcode,
+                    size: 1 << erase_size_2,
+                    time_typ: None,
+                    time_max: None,
                 });
             }
         }
@@ -362,7 +377,10 @@ impl FlashParams {
             let opcode = bits!(dwords[8], 8, 8) as u8;
             if opcode != 0 {
                 erase_insts[2] = Some(SFDPEraseInst {
-                    opcode, size: 1 << erase_size_3, time_typ: None, time_max: None,
+                    opcode,
+                    size: 1 << erase_size_3,
+                    time_typ: None,
+                    time_max: None,
                 });
             }
         }
@@ -370,7 +388,10 @@ impl FlashParams {
             let opcode = bits!(dwords[8], 8, 24) as u8;
             if opcode != 0 {
                 erase_insts[3] = Some(SFDPEraseInst {
-                    opcode, size: 1 << erase_size_4, time_typ: None, time_max: None,
+                    opcode,
+                    size: 1 << erase_size_4,
+                    time_typ: None,
+                    time_max: None,
                 });
             }
         }
@@ -378,12 +399,23 @@ impl FlashParams {
         // Return a FlashParams with the legacy information set and further information
         // cleared, which can be filled in if additional DWORDs are available.
         FlashParams {
-            version_major: major, version_minor: minor,
-            address_bytes, density, legacy_4kb_erase_supported, legacy_4kb_erase_inst,
-            legacy_volatile_write_en_inst, legacy_block_protect_volatile,
-            legacy_byte_write_granularity, erase_insts,
-            timing: None, page_size: None, busy_poll_flag: None, busy_poll_status: None,
-            reset_inst_f0: None, reset_inst_66_99: None, status_1_vol: None,
+            version_major: major,
+            version_minor: minor,
+            address_bytes,
+            density,
+            legacy_4kb_erase_supported,
+            legacy_4kb_erase_inst,
+            legacy_volatile_write_en_inst,
+            legacy_block_protect_volatile,
+            legacy_byte_write_granularity,
+            erase_insts,
+            timing: None,
+            page_size: None,
+            busy_poll_flag: None,
+            busy_poll_status: None,
+            reset_inst_f0: None,
+            reset_inst_66_99: None,
+            status_1_vol: None,
         }
     }
 
@@ -431,10 +463,14 @@ impl FlashParams {
         let (page_prog_time_typ, page_prog_time_max) =
             Self::page_program_duration(typ, program_scale);
         self.timing = Some(SFDPTiming {
-            chip_erase_time_typ, chip_erase_time_max,
-            first_byte_prog_time_typ, first_byte_prog_time_max,
-            succ_byte_prog_time_typ, succ_byte_prog_time_max,
-            page_prog_time_typ, page_prog_time_max,
+            chip_erase_time_typ,
+            chip_erase_time_max,
+            first_byte_prog_time_typ,
+            first_byte_prog_time_max,
+            succ_byte_prog_time_typ,
+            succ_byte_prog_time_max,
+            page_prog_time_typ,
+            page_prog_time_max,
         });
         self.page_size = Some(1 << bits!(dwords[10], 4, 4));
 
@@ -464,7 +500,7 @@ impl FlashParams {
             0b01 => Duration::from_millis(16),
             0b10 => Duration::from_millis(128),
             0b11 => Duration::from_secs(1),
-            _    => unreachable!(),
+            _ => unreachable!(),
         };
         let count = bits!(typ, 5, 0);
         let typ = (count + 1) * scale;
@@ -481,7 +517,7 @@ impl FlashParams {
             0b01 => Duration::from_millis(256),
             0b10 => Duration::from_secs(4),
             0b11 => Duration::from_secs(64),
-            _    => unreachable!(),
+            _ => unreachable!(),
         };
         let count = bits!(typ, 5, 0);
         let typ = (count + 1) * scale;
@@ -496,7 +532,7 @@ impl FlashParams {
         let scale = match bits!(typ, 1, 4) {
             0b0 => Duration::from_micros(1),
             0b1 => Duration::from_micros(8),
-            _    => unreachable!(),
+            _ => unreachable!(),
         };
         let count = bits!(typ, 4, 0);
         let typ = (count + 1) * scale;
@@ -511,7 +547,7 @@ impl FlashParams {
         let scale = match bits!(typ, 1, 5) {
             0b0 => Duration::from_micros(8),
             0b1 => Duration::from_micros(64),
-            _    => unreachable!(),
+            _ => unreachable!(),
         };
         let count = bits!(typ, 5, 0);
         let typ = (count + 1) * scale;
@@ -522,34 +558,53 @@ impl FlashParams {
 
 impl core::fmt::Display for FlashParams {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        writeln!(f, "SFDP JEDEC Basic Flash Parameter Table v{}.{}",
-               self.version_major, self.version_minor)?;
+        writeln!(
+            f,
+            "SFDP JEDEC Basic Flash Parameter Table v{}.{}",
+            self.version_major, self.version_minor
+        )?;
         writeln!(f, "  Density: {} bits ({} KiB)", self.density, self.capacity_bytes() / 1024)?;
         writeln!(f, "  Address bytes: {:?}", self.address_bytes)?;
         writeln!(f, "  Legacy information:")?;
         writeln!(f, "    4kB erase supported: {}", self.legacy_4kb_erase_supported)?;
         writeln!(f, "    4kB erase opcode: 0x{:02X}", self.legacy_4kb_erase_inst)?;
         writeln!(f, "    Block Protect always volatile: {}", self.legacy_block_protect_volatile)?;
-        writeln!(f, "    Volatile write enable opcode: 0x{:02X}", self.legacy_volatile_write_en_inst)?;
+        writeln!(
+            f,
+            "    Volatile write enable opcode: 0x{:02X}",
+            self.legacy_volatile_write_en_inst
+        )?;
         writeln!(f, "    Writes have byte granularity: {}", self.legacy_byte_write_granularity)?;
         writeln!(f, "  Erase instructions:")?;
         for i in 0..4 {
             if let Some(inst) = self.erase_insts[i] {
-                writeln!(f, "    {}: {}", i+1, inst)?;
+                writeln!(f, "    {}: {}", i + 1, inst)?;
             } else {
-                writeln!(f, "    {}: Not present", i+1)?;
+                writeln!(f, "    {}: Not present", i + 1)?;
             }
         }
         if let Some(timing) = self.timing {
             writeln!(f, "  Timing:")?;
-            writeln!(f, "    Chip erase: typ {:?}, max {:?}",
-                     timing.chip_erase_time_typ, timing.chip_erase_time_max)?;
-            writeln!(f, "    First byte program: typ {:?}, max {:?}",
-                     timing.first_byte_prog_time_typ, timing.first_byte_prog_time_max)?;
-            writeln!(f, "    Subsequent byte program: typ {:?}, max {:?}",
-                     timing.succ_byte_prog_time_typ, timing.succ_byte_prog_time_max)?;
-            writeln!(f, "    Page program: typ {:?}, max {:?}",
-                     timing.page_prog_time_typ, timing.page_prog_time_max)?;
+            writeln!(
+                f,
+                "    Chip erase: typ {:?}, max {:?}",
+                timing.chip_erase_time_typ, timing.chip_erase_time_max
+            )?;
+            writeln!(
+                f,
+                "    First byte program: typ {:?}, max {:?}",
+                timing.first_byte_prog_time_typ, timing.first_byte_prog_time_max
+            )?;
+            writeln!(
+                f,
+                "    Subsequent byte program: typ {:?}, max {:?}",
+                timing.succ_byte_prog_time_typ, timing.succ_byte_prog_time_max
+            )?;
+            writeln!(
+                f,
+                "    Page program: typ {:?}, max {:?}",
+                timing.page_prog_time_typ, timing.page_prog_time_max
+            )?;
         }
         if let Some(page_size) = self.page_size {
             writeln!(f, "  Page size: {} bytes", page_size)?;

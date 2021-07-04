@@ -69,4 +69,3 @@ impl StatusRegister3 {
         self.0 |= (wps as u8) << 2;
     }
 }
-
