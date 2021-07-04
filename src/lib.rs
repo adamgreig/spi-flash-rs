@@ -268,7 +268,7 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         }
 
         let id = FlashID {
-            manufacturer_bank, manufacturer_id, device_id_short, device_id_long, unique_id
+            manufacturer_bank, manufacturer_id, device_id_long, device_id_short, unique_id
         };
 
         log::debug!("Read ID: {:?}", id);
@@ -967,10 +967,8 @@ impl<'a, A: FlashAccess> Flash<'a, A> {
         if let Some(params) = self.params {
             if params.erase_insts.iter().any(|&inst| inst.is_some()) {
                 log::trace!("Using SFDP erase instructions.");
-                for inst in params.erase_insts.iter() {
-                    if let Some(inst) = inst {
-                        insts.push((inst.size as usize, inst.opcode, inst.time_typ));
-                    }
+                for inst in params.erase_insts.iter().flatten() {
+                    insts.push((inst.size as usize, inst.opcode, inst.time_typ));
                 }
             } else if params.legacy_4kb_erase_supported {
                 log::trace!("No erase instructions in SFDP, using legacy 4kB erase.");

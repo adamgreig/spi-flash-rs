@@ -299,12 +299,10 @@ impl FlashParams {
     pub fn sector_erase(&self) -> Option<(usize, u8)> {
         let mut size = u32::MAX;
         let mut opcode = 0u8;
-        for inst in self.erase_insts.iter() {
-            if let Some(inst) = inst {
-                if inst.size < size {
-                    size = inst.size;
-                    opcode = inst.opcode;
-                }
+        for inst in self.erase_insts.iter().flatten() {
+            if inst.size < size {
+                size = inst.size;
+                opcode = inst.opcode;
             }
         }
 
@@ -434,8 +432,8 @@ impl FlashParams {
             Self::page_program_duration(typ, program_scale);
         self.timing = Some(SFDPTiming {
             chip_erase_time_typ, chip_erase_time_max,
-            succ_byte_prog_time_typ, succ_byte_prog_time_max,
             first_byte_prog_time_typ, first_byte_prog_time_max,
+            succ_byte_prog_time_typ, succ_byte_prog_time_max,
             page_prog_time_typ, page_prog_time_max,
         });
         self.page_size = Some(1 << bits!(dwords[10], 4, 4));
