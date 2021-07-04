@@ -62,6 +62,18 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// Providers only need to implement `exchange()`, which asserts CS, writes all the bytes
 /// in `data`, then returns all the received bytes. If it provides a performance optimisation,
 /// providers may also implement `write()`, which does not require the received data.
+///
+/// `From<FlashAccess::Error>` must be implemented for `spi_flash::Error`; for example in your
+/// implementation code, add:
+///
+/// ```
+/// # #[derive(thiserror::Error, Debug)] enum MyError {}
+/// impl From<MyError> for spi_flash::Error {
+///     fn from(err: MyError) -> spi_flash::Error {
+///         spi_flash::Error::Access(err.into())
+///     }
+/// }
+/// ```
 pub trait FlashAccess {
     type Error;
 
@@ -77,8 +89,17 @@ pub trait FlashAccess {
     /// Returns the received data.
     fn exchange(&mut self, data: &[u8]) -> core::result::Result<Vec<u8>, Self::Error>;
 
-    /// Wait for at least `dur`
-    fn delay(&mut self, dur: Duration);
+    /// Wait for at least `duration`.
+    ///
+    /// This delay is advisory and reduces polling traffic based on known
+    /// typical flash instruction times, so may be left unimplemented.
+    ///
+    /// The default implementation uses std::thread::delay on std,
+    /// and is a no-op on no_std.
+    fn delay(&mut self, duration: Duration) {
+        #[cfg(feature = "std")]
+        std::thread::sleep(duration);
+    }
 }
 
 /// SPI Flash.
@@ -112,7 +133,7 @@ pub struct Flash<'a, A: FlashAccess> {
     erase_opcode: u8,
 }
 
-impl<'a, A: FlashAccess> Flash<'a, A> where Error: From<A::Error> {
+impl<'a, A: FlashAccess> Flash<'a, A> where Error: From<<A as FlashAccess>::Error> {
     #[cfg(feature = "std")]
     const DATA_PROGRESS_TPL: &'static str =
         " {msg} [{bar:40}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
