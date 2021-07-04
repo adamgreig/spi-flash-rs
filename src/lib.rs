@@ -30,59 +30,55 @@ pub use id::FlashID;
 use sfdp::SFDPHeader;
 use erase_plan::ErasePlan;
 
-#[cfg(feature = "std")]
-#[derive(thiserror::Error, Debug)]
+#[cfg_attr(feature="std", derive(thiserror::Error, Debug))]
 pub enum Error {
-    #[error("Mismatch during flash readback verification.")]
+    #[cfg_attr(feature="std", error("Mismatch during flash readback verification."))]
     ReadbackError { address: u32, wrote: u8, read: u8 },
-    #[error("Invalid manufacturer ID detected.")]
+    #[cfg_attr(feature="std", error("Invalid manufacturer ID detected."))]
     InvalidManufacturer,
-    #[error("Invalid SFDP header.")]
+    #[cfg_attr(feature="std", error("Invalid SFDP header."))]
     InvalidSFDPHeader,
-    #[error("Invalid parameter in SFDP parameter table.")]
+    #[cfg_attr(feature="std", error("Invalid parameter in SFDP parameter table."))]
     InvalidSFDPParams,
-    #[error("Address out of range for memory: 0x{address:08X}.")]
+    #[cfg_attr(feature="std", error("Address out of range for memory: 0x{address:08X}."))]
     InvalidAddress { address: u32 },
-    #[error("No supported reset instruction is available.")]
+    #[cfg_attr(feature="std", error("No supported reset instruction is available."))]
     NoResetInstruction,
-    #[error("No erase instruction has been specified.")]
+    #[cfg_attr(feature="std", error("No erase instruction has been specified."))]
     NoEraseInstruction,
 
+    #[cfg(feature="std")]
     #[error(transparent)]
     Access(#[from] anyhow::Error),
-}
-#[cfg(not(feature = "std"))]
-#[derive(Debug)]
-pub enum Error<E> {
-    ReadbackError { address: u32, wrote: u8, read: u8 },
-    InvalidManufacturer,
-    InvalidSFDPHeader,
-    InvalidSFDPParams,
-    InvalidAddress { address: u32 },
-    NoResetInstruction,
-    NoEraseInstruction,
 
-    Access(E),
+    #[cfg(not(feature = "std"))]
+    Access,
 }
 
-#[cfg(feature = "std")]
-pub type Result<T> = std::result::Result<T, Error>;
-#[cfg(not(feature = "std"))]
-pub type Result<T> = core::result::Result<T, Error<()>>;
-
-#[cfg(feature = "std")]
-pub type AnyhowResult<T> = anyhow::Result<T>;
-#[cfg(not(feature = "std"))]
-pub type AnyhowResult<T> = Result<T>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 /// Trait for objects which provide access to SPI flash.
 ///
 /// Providers only need to implement `exchange()`, which asserts CS, writes all the bytes
 /// in `data`, then returns all the received bytes. If it provides a performance optimisation,
 /// providers may also implement `write()`, which does not require the received data.
+///
+/// `From<FlashAccess::Error>` must be implemented for `spi_flash::Error`; for example in your
+/// implementation code, add:
+///
+/// ```
+/// # #[derive(thiserror::Error, Debug)] enum MyError {}
+/// impl From<MyError> for spi_flash::Error {
+///     fn from(err: MyError) -> spi_flash::Error {
+///         spi_flash::Error::Access(err.into())
+///     }
+/// }
+/// ```
 pub trait FlashAccess {
+    type Error;
+
     /// Assert CS, write all bytes in `data` to the SPI bus, then de-assert CS.
-    fn write(&mut self, data: &[u8]) -> AnyhowResult<()> {
+    fn write(&mut self, data: &[u8]) -> core::result::Result<(), Self::Error> {
         // Default implementation uses `exchange()` and ignores the result data.
         self.exchange(data)?;
         Ok(())
@@ -91,10 +87,19 @@ pub trait FlashAccess {
     /// Assert CS, write all bytes in `data` while capturing received data, then de-assert CS.
     ///
     /// Returns the received data.
-    fn exchange(&mut self, data: &[u8]) -> AnyhowResult<Vec<u8>>;
+    fn exchange(&mut self, data: &[u8]) -> core::result::Result<Vec<u8>, Self::Error>;
 
-    /// Wait for at least `dur`
-    fn delay(&mut self, dur: Duration);
+    /// Wait for at least `duration`.
+    ///
+    /// This delay is advisory and reduces polling traffic based on known
+    /// typical flash instruction times, so may be left unimplemented.
+    ///
+    /// The default implementation uses std::thread::delay on std,
+    /// and is a no-op on no_std.
+    fn delay(&mut self, duration: Duration) {
+        #[cfg(feature = "std")]
+        std::thread::sleep(duration);
+    }
 }
 
 /// SPI Flash.
@@ -128,7 +133,7 @@ pub struct Flash<'a, A: FlashAccess> {
     erase_opcode: u8,
 }
 
-impl<'a, A: FlashAccess> Flash<'a, A> {
+impl<'a, A: FlashAccess> Flash<'a, A> where Error: From<<A as FlashAccess>::Error> {
     #[cfg(feature = "std")]
     const DATA_PROGRESS_TPL: &'static str =
         " {msg} [{bar:40}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
