@@ -18,17 +18,17 @@ use indicatif::{ProgressBar, ProgressStyle};
 #[cfg(feature = "std")]
 use std::time::Instant;
 
+pub mod erase_plan;
+pub mod id;
 pub mod sfdp;
 pub mod sreg;
-pub mod id;
-pub mod erase_plan;
 
+pub use id::FlashID;
 pub use sfdp::{FlashParams, SFDPAddressBytes, SFDPEraseInst, SFDPStatus1Volatility, SFDPTiming};
 pub use sreg::{StatusRegister1, StatusRegister2, StatusRegister3};
-pub use id::FlashID;
 
-use sfdp::SFDPHeader;
 use erase_plan::ErasePlan;
+use sfdp::SFDPHeader;
 
 #[cfg_attr(feature = "std", derive(thiserror::Error, Debug))]
 pub enum Error {
@@ -40,7 +40,10 @@ pub enum Error {
     InvalidSFDPHeader,
     #[cfg_attr(feature = "std", error("Invalid parameter in SFDP parameter table."))]
     InvalidSFDPParams,
-    #[cfg_attr(feature = "std", error("Address out of range for memory: 0x{address:08X}."))]
+    #[cfg_attr(
+        feature = "std",
+        error("Address out of range for memory: 0x{address:08X}.")
+    )]
     InvalidAddress { address: u32 },
     #[cfg_attr(feature = "std", error("No supported reset instruction is available."))]
     NoResetInstruction,
@@ -352,7 +355,11 @@ where
             self.erase_opcode = params.legacy_4kb_erase_inst;
         }
         log::debug!("Updated settings from parameters:");
-        log::debug!("Address bytes: {}, capacity: {:?} bytes", self.address_bytes, self.capacity);
+        log::debug!(
+            "Address bytes: {}, capacity: {:?} bytes",
+            self.address_bytes,
+            self.capacity
+        );
         log::debug!(
             "Page size: {:?}, erase size: {:?}, erase op: {}",
             self.page_size,
@@ -592,7 +599,12 @@ where
     /// the SFDP parameters are used to determine the correct
     /// non-volatile instruction.
     pub fn protect(&mut self, bp0: bool, bp1: bool, bp2: bool) -> Result<()> {
-        log::debug!("Setting block protection bits to BP0={}, BP1={}, BP2={}", bp0, bp1, bp2);
+        log::debug!(
+            "Setting block protection bits to BP0={}, BP1={}, BP2={}",
+            bp0,
+            bp1,
+            bp2
+        );
         let mut status1 = self.read_status1()?;
         status1.set_block_protect(bp0, bp1, bp2);
         self.write_status1(status1)?;
@@ -700,7 +712,11 @@ where
             }
         };
 
-        log::trace!("Programming data to 0x{:08X}, page size {} bytes", address, page_size);
+        log::trace!(
+            "Programming data to 0x{:08X}, page size {} bytes",
+            address,
+            page_size
+        );
 
         let mut total_bytes = 0;
         cb(total_bytes);
@@ -774,7 +790,11 @@ where
             let data = self.exchange(Command::ReadJEDECID, &[], 16)?;
             for n in 1..=13 {
                 if data[n] != 0x7F {
-                    return Ok((n as u8, data[n], u16::from_be_bytes([data[n + 1], data[n + 2]])));
+                    return Ok((
+                        n as u8,
+                        data[n],
+                        u16::from_be_bytes([data[n + 1], data[n + 2]]),
+                    ));
                 }
             }
             log::error!("Found more than 11 continuation bytes in manufacturer ID");
@@ -816,7 +836,8 @@ where
 
     /// Read status register 1.
     pub fn read_status1(&mut self) -> Result<StatusRegister1> {
-        self.exchange(Command::ReadStatusRegister1, &[], 1).map(|data| StatusRegister1(data[0]))
+        self.exchange(Command::ReadStatusRegister1, &[], 1)
+            .map(|data| StatusRegister1(data[0]))
     }
 
     /// Read status register 2.
@@ -824,7 +845,8 @@ where
     /// This status register is less widely supported and SFDP does
     /// not indicate whether or not it is present.
     pub fn read_status2(&mut self) -> Result<StatusRegister2> {
-        self.exchange(Command::ReadStatusRegister2, &[], 1).map(|data| StatusRegister2(data[0]))
+        self.exchange(Command::ReadStatusRegister2, &[], 1)
+            .map(|data| StatusRegister2(data[0]))
     }
 
     /// Read status register 3.
@@ -832,7 +854,8 @@ where
     /// This status register is less widely supported and SFDP does
     /// not indicate whether or not it is present.
     pub fn read_status3(&mut self) -> Result<StatusRegister3> {
-        self.exchange(Command::ReadStatusRegister3, &[], 1).map(|data| StatusRegister3(data[0]))
+        self.exchange(Command::ReadStatusRegister3, &[], 1)
+            .map(|data| StatusRegister3(data[0]))
     }
 
     /// Write status register 1.
@@ -962,15 +985,21 @@ where
 
         if (end & (max_addr - 1)) < start {
             log::error!("Operation would wrap");
-            Err(Error::InvalidAddress { address: end as u32 })
+            Err(Error::InvalidAddress {
+                address: end as u32,
+            })
         } else if end > max_addr {
             log::error!("Operation would exceed largest address");
-            Err(Error::InvalidAddress { address: end as u32 })
+            Err(Error::InvalidAddress {
+                address: end as u32,
+            })
         } else {
             match self.capacity {
                 Some(capacity) if (end >= capacity) => {
                     log::error!("Operation would exceed flash capacity");
-                    Err(Error::InvalidAddress { address: end as u32 })
+                    Err(Error::InvalidAddress {
+                        address: end as u32,
+                    })
                 }
                 _ => Ok(()),
             }
@@ -988,7 +1017,11 @@ where
     /// Work out what combination of erase operations to run to efficiently
     /// erase the specified memory.
     fn make_erase_plan(&self, address: u32, length: usize) -> Result<ErasePlan> {
-        log::debug!("Creating erase plan for address={} length={}", address, length);
+        log::debug!(
+            "Creating erase plan for address={} length={}",
+            address,
+            length
+        );
         // Erase instructions: (size in bytes, opcode).
         let mut insts = Vec::new();
 
@@ -1124,7 +1157,11 @@ where
     ///
     /// Returns Err::ReadbackError on mismatch.
     fn verify_readback(&mut self, address: u32, data: &[u8], new_data: &[u8]) -> Result<()> {
-        let mismatch = data.iter().zip(new_data).enumerate().find(|(_, (a, b))| a != b);
+        let mismatch = data
+            .iter()
+            .zip(new_data)
+            .enumerate()
+            .find(|(_, (a, b))| a != b);
         match mismatch {
             Some((idx, (a, b))) => {
                 let addr = address + idx as u32;
@@ -1137,7 +1174,11 @@ where
                 if self.is_protected()? {
                     log::error!("Flash write protection appears to be enabled, try unprotecting.");
                 }
-                Err(Error::ReadbackError { address: addr, wrote: *a, read: *b })
+                Err(Error::ReadbackError {
+                    address: addr,
+                    wrote: *a,
+                    read: *b,
+                })
             }
             None => Ok(()),
         }

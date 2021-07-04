@@ -23,7 +23,12 @@ impl SFDPHeader {
             let minor = data[4];
             let major = data[5];
             let nph = data[6] as usize + 1;
-            log::debug!("Read SFDP header, NPH={} MAJOR={} MINOR={}", nph, major, minor);
+            log::debug!(
+                "Read SFDP header, NPH={} MAJOR={} MINOR={}",
+                nph,
+                major,
+                minor
+            );
             if data.len() < (nph + 1) * 8 {
                 log::error!(
                     "Did not read enough SFDP bytes: got {}, needed {}",
@@ -32,8 +37,16 @@ impl SFDPHeader {
                 );
                 Err(Error::InvalidSFDPHeader)
             } else {
-                let params = data[8..].chunks(8).map(SFDPParameterHeader::from_bytes).collect();
-                Ok(SFDPHeader { nph, major, minor, params })
+                let params = data[8..]
+                    .chunks(8)
+                    .map(SFDPParameterHeader::from_bytes)
+                    .collect();
+                Ok(SFDPHeader {
+                    nph,
+                    major,
+                    minor,
+                    params,
+                })
             }
         }
     }
@@ -65,7 +78,13 @@ impl SFDPParameterHeader {
             parameter_id,
             ptp
         );
-        SFDPParameterHeader { plen, major, minor, parameter_id, ptp }
+        SFDPParameterHeader {
+            plen,
+            major,
+            minor,
+            parameter_id,
+            ptp,
+        }
     }
 }
 
@@ -261,7 +280,10 @@ macro_rules! bits {
 
 impl FlashParams {
     pub fn from_bytes(major: u8, minor: u8, data: &[u8]) -> Result<Self> {
-        log::debug!("Reading SFDP JEDEC Basic Flash Parameters from: {:X?}", data);
+        log::debug!(
+            "Reading SFDP JEDEC Basic Flash Parameters from: {:X?}",
+            data
+        );
 
         // Check we have enough data.
         if data.len() % 4 != 0 {
@@ -563,18 +585,39 @@ impl core::fmt::Display for FlashParams {
             "SFDP JEDEC Basic Flash Parameter Table v{}.{}",
             self.version_major, self.version_minor
         )?;
-        writeln!(f, "  Density: {} bits ({} KiB)", self.density, self.capacity_bytes() / 1024)?;
+        writeln!(
+            f,
+            "  Density: {} bits ({} KiB)",
+            self.density,
+            self.capacity_bytes() / 1024
+        )?;
         writeln!(f, "  Address bytes: {:?}", self.address_bytes)?;
         writeln!(f, "  Legacy information:")?;
-        writeln!(f, "    4kB erase supported: {}", self.legacy_4kb_erase_supported)?;
-        writeln!(f, "    4kB erase opcode: 0x{:02X}", self.legacy_4kb_erase_inst)?;
-        writeln!(f, "    Block Protect always volatile: {}", self.legacy_block_protect_volatile)?;
+        writeln!(
+            f,
+            "    4kB erase supported: {}",
+            self.legacy_4kb_erase_supported
+        )?;
+        writeln!(
+            f,
+            "    4kB erase opcode: 0x{:02X}",
+            self.legacy_4kb_erase_inst
+        )?;
+        writeln!(
+            f,
+            "    Block Protect always volatile: {}",
+            self.legacy_block_protect_volatile
+        )?;
         writeln!(
             f,
             "    Volatile write enable opcode: 0x{:02X}",
             self.legacy_volatile_write_en_inst
         )?;
-        writeln!(f, "    Writes have byte granularity: {}", self.legacy_byte_write_granularity)?;
+        writeln!(
+            f,
+            "    Writes have byte granularity: {}",
+            self.legacy_byte_write_granularity
+        )?;
         writeln!(f, "  Erase instructions:")?;
         for i in 0..4 {
             if let Some(inst) = self.erase_insts[i] {
