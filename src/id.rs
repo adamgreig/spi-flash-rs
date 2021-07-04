@@ -41,8 +41,10 @@ impl core::fmt::Display for FlashID {
             0x0000_0000_0000_0000 | 0xFFFF_FFFF_FFFF_FFFF => "".to_string(),
             id => alloc::format!(", Unique ID: {:016X}", id),
         };
-        write!(f, "Manufacturer 0x{:02X}{}, Device 0x{:02X}/0x{:04X}{}",
-               self.manufacturer_id, mfn, self.device_id_short,
-               self.device_id_long, unique_id)
+        write!(
+            f,
+            "Manufacturer 0x{:02X}{}, Device 0x{:02X}/0x{:04X}{}",
+            self.manufacturer_id, mfn, self.device_id_short, self.device_id_long, unique_id
+        )
     }
 }
