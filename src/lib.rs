@@ -142,9 +142,12 @@ where
 {
     #[cfg(feature = "std")]
     const DATA_PROGRESS_TPL: &'static str =
-        " {msg} [{bar:40}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
+        " {msg} [{bar:40.cyan/black}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
     #[cfg(feature = "std")]
-    const DATA_PROGRESS_CHARS: &'static str = "=> ";
+    const DATA_FINISHED_TPL: &'static str =
+        " {msg} [{bar:40.green/black}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
+    #[cfg(feature = "std")]
+    const DATA_PROGRESS_CHARS: &'static str = "━╸━";
 
     /// Create a new Flash instance using the given FlashAccess provider.
     pub fn new(access: &'a mut A) -> Self {
@@ -428,12 +431,17 @@ where
     #[cfg(feature = "std")]
     pub fn read_progress(&mut self, address: u32, length: usize) -> Result<Vec<u8>> {
         let pb = ProgressBar::new(length as u64).with_style(
-            ProgressStyle::default_bar()
-                .template(Self::DATA_PROGRESS_TPL)
+            ProgressStyle::with_template(Self::DATA_PROGRESS_TPL)
+                .unwrap()
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Reading");
         let result = self.read_cb(address, length, |n| pb.set_position(n as u64));
+        pb.set_style(
+            ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
+                .unwrap()
+                .progress_chars(Self::DATA_PROGRESS_CHARS),
+        );
         pb.finish();
         result
     }
@@ -464,9 +472,9 @@ where
         let time = self.params.map(|p| p.timing.map(|t| t.chip_erase_time_typ));
         let pb = if let Some(Some(time)) = time {
             ProgressBar::new(time.as_millis() as u64).with_style(
-                ProgressStyle::default_bar()
-                    .template(" {msg} [{bar:40}] {elapsed} < {eta}")
-                    .progress_chars("=> "),
+                ProgressStyle::with_template(" {msg} [{bar:40.cyan/black}] {elapsed} < {eta}")
+                    .unwrap()
+                    .progress_chars(Self::DATA_PROGRESS_CHARS),
             )
         } else {
             ProgressBar::new_spinner()
@@ -680,12 +688,17 @@ where
     #[cfg(feature = "std")]
     pub fn program_data_progress(&mut self, address: u32, data: &[u8]) -> Result<()> {
         let pb = ProgressBar::new(data.len() as u64).with_style(
-            ProgressStyle::default_bar()
-                .template(Self::DATA_PROGRESS_TPL)
+            ProgressStyle::with_template(Self::DATA_PROGRESS_TPL)
+                .unwrap()
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Writing");
         self.program_data_cb(address, &data, |n| pb.set_position(n as u64))?;
+        pb.set_style(
+            ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
+                .unwrap()
+                .progress_chars(Self::DATA_PROGRESS_CHARS),
+        );
         pb.finish();
         Ok(())
     }
@@ -1143,12 +1156,17 @@ where
     fn run_erase_plan_progress(&mut self, plan: &ErasePlan) -> Result<()> {
         let erase_size = plan.total_size() as u64;
         let pb = ProgressBar::new(erase_size).with_style(
-            ProgressStyle::default_bar()
-                .template(Self::DATA_PROGRESS_TPL)
+            ProgressStyle::with_template(Self::DATA_PROGRESS_TPL)
+                .unwrap()
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Erasing");
         self.run_erase_plan(&plan, |n| pb.set_position(n as u64))?;
+        pb.set_style(
+            ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
+                .unwrap()
+                .progress_chars(Self::DATA_PROGRESS_CHARS),
+        );
         pb.finish();
         Ok(())
     }
