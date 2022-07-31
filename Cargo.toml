@@ -1,6 +1,6 @@
 [package]
 name = "spi-flash"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Adam Greig <adam@adamgreig.com>"]
 edition = "2018"
 repository = "https://github.com/adamgreig/spi-flash-rs"
@@ -8,12 +8,12 @@ license = "Apache-2.0 OR MIT"
 description = "SPI flash memory interface crate"
 
 [dependencies]
-log = "0.4.11"
-num_enum = { version = "0.5.1", default_features = false }
-jep106 = { version = "0.2.4", optional = true }
-anyhow = { version = "1.0.34", optional = true }
-thiserror = { version = "1.0.22", optional = true }
-indicatif = { version = "0.15.0", optional = true }
+log = "0.4.17"
+num_enum = { version = "0.5.7", default_features = false }
+jep106 = { version = "0.2.6", optional = true }
+anyhow = { version = "1.0.58", optional = true }
+thiserror = { version = "1.0.31", optional = true }
+indicatif = { version = "0.17.0", optional = true }
 
 [features]
 default = ["std"]
