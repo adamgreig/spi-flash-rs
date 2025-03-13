@@ -491,6 +491,40 @@ where
         Ok(())
     }
 
+    /// Erase `length` bytes from the attached flash starting at `address`.
+    ///
+    /// `address` and `length` has to be sector aligned or `InvalidAddress`
+    /// error will be returned.
+    ///
+    /// When available, SFDP parameters are used to generate an efficient
+    /// sequence of erase instructions. If unavailable, the single erase
+    /// instruction in `erase_opcode` is used, and its size of effect
+    /// must be given in `erase_size`. If these are not set, a
+    /// `NoEraseInstruction` is returned.
+    pub fn erase_sectors(&mut self, address: u32, length: usize) -> Result<()> {
+        self.check_address_length(address, length)?;
+
+        // Work out a good erasure plan.
+        let erase_plan = self.make_erase_plan(address, length)?;
+
+        // If there are data which will inadvertently be erased, return error.
+        let start_base = erase_plan.0[0].2;
+        let (_, end_size, end_base, _) = erase_plan.0.last().unwrap();
+        let erase_end = address + (length as u32);
+
+        if address != start_base {
+            return Err(Error::InvalidAddress { address });
+        }
+        if (*end_base as usize + *end_size) != erase_end as usize {
+            return Err(Error::InvalidAddress { address: erase_end });
+        }
+
+        // Execute erasure plan.
+        self.run_erase_plan(&erase_plan, |_| {})?;
+
+        Ok(())
+    }
+
     /// Program the attached flash with `data` starting at `address`.
     ///
     /// Sectors and blocks are erased as required for the new data,
