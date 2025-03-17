@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::time::Duration;
 
 /// Erase plan of (opcode, size, base address, typical duration) to erase a range of memory.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ErasePlan(pub Vec<(u8, usize, u32, Option<Duration>)>);
 
 impl ErasePlan {
