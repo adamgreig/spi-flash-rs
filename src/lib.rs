@@ -10,6 +10,7 @@
 
 extern crate alloc;
 use alloc::vec::Vec;
+use embedded_hal::spi::{Operation, SpiDevice};
 
 use core::convert::TryInto;
 use core::time::Duration;
@@ -31,7 +32,7 @@ use erase_plan::ErasePlan;
 use sfdp::SFDPHeader;
 
 #[cfg_attr(feature = "std", derive(thiserror::Error, Debug))]
-pub enum Error {
+pub enum FlashError {
     #[cfg_attr(feature = "std", error("Mismatch during flash readback verification."))]
     ReadbackError { address: u32, wrote: u8, read: u8 },
     #[cfg_attr(feature = "std", error("Invalid manufacturer ID detected."))]
@@ -49,67 +50,17 @@ pub enum Error {
     NoResetInstruction,
     #[cfg_attr(feature = "std", error("No erase instruction has been specified."))]
     NoEraseInstruction,
-
-    #[cfg(feature = "std")]
-    #[error(transparent)]
-    Access(#[from] anyhow::Error),
-
-    #[cfg(not(feature = "std"))]
+    #[cfg_attr(feature = "std", error("SpiDevice access failed."))]
     Access,
 }
 
-pub type Result<T> = core::result::Result<T, Error>;
-
-/// Trait for objects which provide access to SPI flash.
-///
-/// Providers only need to implement `exchange()`, which asserts CS, writes all the bytes
-/// in `data`, then returns all the received bytes. If it provides a performance optimisation,
-/// providers may also implement `write()`, which does not require the received data.
-///
-/// `From<FlashAccess::Error>` must be implemented for `spi_flash::Error`; for example in your
-/// implementation code, add:
-///
-/// ```
-/// # #[derive(thiserror::Error, Debug)] enum MyError {}
-/// impl From<MyError> for spi_flash::Error {
-///     fn from(err: MyError) -> spi_flash::Error {
-///         spi_flash::Error::Access(err.into())
-///     }
-/// }
-/// ```
-pub trait FlashAccess {
-    type Error;
-
-    /// Assert CS, write all bytes in `data` to the SPI bus, then de-assert CS.
-    fn write(&mut self, data: &[u8]) -> core::result::Result<(), Self::Error> {
-        // Default implementation uses `exchange()` and ignores the result data.
-        self.exchange(data)?;
-        Ok(())
-    }
-
-    /// Assert CS, write all bytes in `data` while capturing received data, then de-assert CS.
-    ///
-    /// Returns the received data.
-    fn exchange(&mut self, data: &[u8]) -> core::result::Result<Vec<u8>, Self::Error>;
-
-    /// Wait for at least `duration`.
-    ///
-    /// This delay is advisory and reduces polling traffic based on known
-    /// typical flash instruction times, so may be left unimplemented.
-    ///
-    /// The default implementation uses std::thread::delay on std,
-    /// and is a no-op on no_std.
-    fn delay(&mut self, duration: Duration) {
-        #[cfg(feature = "std")]
-        std::thread::sleep(duration);
-    }
-}
+pub type Result<T> = core::result::Result<T, FlashError>;
 
 /// SPI Flash.
 ///
 /// This struct provides methods for interacting with common SPI flashes.
-pub struct Flash<'a, A: FlashAccess> {
-    access: &'a mut A,
+pub struct Flash<'a, A: SpiDevice> {
+    device: &'a mut A,
 
     /// Once read, ID details are cached.
     id: Option<FlashID>,
@@ -136,10 +87,7 @@ pub struct Flash<'a, A: FlashAccess> {
     erase_opcode: u8,
 }
 
-impl<'a, A: FlashAccess> Flash<'a, A>
-where
-    Error: From<<A as FlashAccess>::Error>,
-{
+impl<'a, A: SpiDevice> Flash<'a, A> {
     #[cfg(feature = "std")]
     const DATA_PROGRESS_TPL: &'static str =
         " {msg} [{bar:40.cyan/black}] {bytes}/{total_bytes} ({bytes_per_sec}; {eta_precise})";
@@ -149,10 +97,10 @@ where
     #[cfg(feature = "std")]
     const DATA_PROGRESS_CHARS: &'static str = "━╸━";
 
-    /// Create a new Flash instance using the given FlashAccess provider.
-    pub fn new(access: &'a mut A) -> Self {
+    /// Create a new Flash instance using the given SpiDevice provider.
+    pub fn new(device: &'a mut A) -> Self {
         Flash {
-            access,
+            device,
             id: None,
             params: None,
             address_bytes: 3,
@@ -273,7 +221,7 @@ where
             log::warn!("No valid manufacturer ID found");
             if legacy_id == 0x00 || legacy_id == 0xFF {
                 log::error!("No device or manufacturer ID found");
-                return Err(Error::InvalidManufacturer);
+                return Err(FlashError::InvalidManufacturer);
             } else {
                 device_id_short = legacy_id;
                 manufacturer_bank = 0;
@@ -331,7 +279,7 @@ where
         let params = header.params[0];
         if params.parameter_id != 0xFF00 || params.major != 0x01 {
             log::error!("Unexpected first SFDP parameter header: expected 0xFF00 version 1.");
-            return Err(Error::InvalidSFDPHeader);
+            return Err(FlashError::InvalidSFDPHeader);
         }
 
         // Read SFDP table data and parse into a FlashParams struct.
@@ -587,7 +535,7 @@ where
             self.command(0xF0)
         } else {
             log::error!("No reset instruction available.");
-            Err(Error::NoResetInstruction)
+            Err(FlashError::NoResetInstruction)
         }
     }
 
@@ -777,7 +725,8 @@ where
                 // otherwise we'll likely have waited long enough just due to round-trip delays.
                 // We always poll the status register at least once to check write completion.
                 if timing.page_prog_time_typ > Duration::from_millis(1) {
-                    self.access.delay(timing.page_prog_time_typ / 2);
+                    #[cfg(feature = "std")]
+                    std::thread::sleep(timing.page_prog_time_typ / 2);
                 }
             }
         }
@@ -811,7 +760,7 @@ where
                 }
             }
             log::error!("Found more than 11 continuation bytes in manufacturer ID");
-            Err(Error::InvalidManufacturer)
+            Err(FlashError::InvalidManufacturer)
         }
     }
 
@@ -837,7 +786,7 @@ where
                 }
             }
             log::error!("Found more than 11 continuation bytes in manufacturer ID");
-            Err(Error::InvalidManufacturer)
+            Err(FlashError::InvalidManufacturer)
         }
     }
 
@@ -964,10 +913,15 @@ where
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
         log::trace!("SPI exchange: write {:02X?}, read {} bytes", &tx, nbytes);
-        tx.extend(alloc::vec![0u8; nbytes]);
-        let rx = self.access.exchange(&tx)?;
+        let mut rx = vec![0; nbytes];
+        self.device
+            .transaction(&mut [Operation::Write(&tx), Operation::Read(&mut rx)])
+            .map_err(|e| {
+                log::error!("{e:?}");
+                FlashError::Access
+            })?;
         log::trace!("SPI exchange: read {:02X?}", &rx[1 + data.len()..]);
-        Ok(rx[1 + data.len()..].to_vec())
+        Ok(rx)
     }
 
     /// Writes `command` and `data` to the flash memory, without reading the response.
@@ -975,7 +929,10 @@ where
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
         log::trace!("SPI write: {:02X?}", &tx);
-        self.access.write(&tx)?;
+        self.device.write(&tx).map_err(|e| {
+            log::error!("{e:?}");
+            FlashError::Access
+        })?;
         Ok(())
     }
 
@@ -998,19 +955,19 @@ where
 
         if (end & (max_addr - 1)) < start {
             log::error!("Operation would wrap");
-            Err(Error::InvalidAddress {
+            Err(FlashError::InvalidAddress {
                 address: end as u32,
             })
         } else if end > max_addr {
             log::error!("Operation would exceed largest address");
-            Err(Error::InvalidAddress {
+            Err(FlashError::InvalidAddress {
                 address: end as u32,
             })
         } else {
             match self.capacity {
                 Some(capacity) if (end >= capacity) => {
                     log::error!("Operation would exceed flash capacity");
-                    Err(Error::InvalidAddress {
+                    Err(FlashError::InvalidAddress {
                         address: end as u32,
                     })
                 }
@@ -1059,7 +1016,7 @@ where
             } else {
                 log::warn!("No erase instructions could be found.");
                 log::warn!("Try setting one manually using `Flash::set_erase_size()`.");
-                return Err(Error::NoEraseInstruction);
+                return Err(FlashError::NoEraseInstruction);
             }
         }
         insts.sort();
@@ -1140,7 +1097,8 @@ where
             self.write_enable()?;
             self.write(*opcode, &addr)?;
             if let Some(duration) = duration {
-                self.access.delay(*duration / 2);
+                #[cfg(feature = "std")]
+                std::thread::sleep(*duration / 2);
             }
             self.wait_while_busy()?;
             total_erased += size;
@@ -1192,7 +1150,7 @@ where
                 if self.is_protected()? {
                     log::error!("Flash write protection appears to be enabled, try unprotecting.");
                 }
-                Err(Error::ReadbackError {
+                Err(FlashError::ReadbackError {
                     address: addr,
                     wrote: *a,
                     read: *b,

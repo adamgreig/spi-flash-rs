@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::{FlashError, Result};
 use alloc::vec::Vec;
 use core::time::Duration;
 
@@ -15,10 +15,10 @@ impl SFDPHeader {
         log::debug!("Parsing SFDP header from data: {:X?}", data);
         if &data[0..4] != b"SFDP" {
             log::error!("Did not read expected SFDP signature");
-            Err(Error::InvalidSFDPHeader)
+            Err(FlashError::InvalidSFDPHeader)
         } else if data[7] != 0xFF {
             log::error!("Unsupported SFDP access protocol {:02X}", data[7]);
-            Err(Error::InvalidSFDPHeader)
+            Err(FlashError::InvalidSFDPHeader)
         } else {
             let minor = data[4];
             let major = data[5];
@@ -35,7 +35,7 @@ impl SFDPHeader {
                     data.len(),
                     (nph + 1) * 8
                 );
-                Err(Error::InvalidSFDPHeader)
+                Err(FlashError::InvalidSFDPHeader)
             } else {
                 let params = data[8..]
                     .chunks(8)
@@ -288,16 +288,16 @@ impl FlashParams {
         // Check we have enough data.
         if data.len() % 4 != 0 {
             log::error!("SFPD data is not a multiple of 4 bytes.");
-            return Err(Error::InvalidSFDPParams);
+            return Err(FlashError::InvalidSFDPParams);
         } else if data.len() < 9 * 4 {
             log::error!("SFPD data is not long enough for version >= 1.0.");
-            return Err(Error::InvalidSFDPParams);
+            return Err(FlashError::InvalidSFDPParams);
         } else if major != 1 {
             log::error!("Only SFPD major version 1 is supported.");
-            return Err(Error::InvalidSFDPParams);
+            return Err(FlashError::InvalidSFDPParams);
         } else if minor > 5 && data.len() < 16 * 4 {
             log::error!("SFPD data is not long enough for version >= 1.5.");
-            return Err(Error::InvalidSFDPParams);
+            return Err(FlashError::InvalidSFDPParams);
         }
 
         // Convert the bytes into "DWORD"s (u32) for easier reference to the specification.
