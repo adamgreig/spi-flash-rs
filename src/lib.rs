@@ -491,6 +491,40 @@ where
         Ok(())
     }
 
+    /// Erase `length` bytes from the attached flash starting at `address`.
+    ///
+    /// `address` and `length` has to be sector aligned or `InvalidAddress`
+    /// error will be returned.
+    ///
+    /// When available, SFDP parameters are used to generate an efficient
+    /// sequence of erase instructions. If unavailable, the single erase
+    /// instruction in `erase_opcode` is used, and its size of effect
+    /// must be given in `erase_size`. If these are not set, a
+    /// `NoEraseInstruction` is returned.
+    pub fn erase_sectors(&mut self, address: u32, length: usize) -> Result<()> {
+        self.check_address_length(address, length)?;
+
+        // Work out a good erasure plan.
+        let erase_plan = self.make_erase_plan(address, length)?;
+
+        // If there are data which will inadvertently be erased, return error.
+        let start_base = erase_plan.0[0].2;
+        let (_, end_size, end_base, _) = erase_plan.0.last().unwrap();
+        let erase_end = address + (length as u32);
+
+        if address != start_base {
+            return Err(Error::InvalidAddress { address });
+        }
+        if (*end_base as usize + *end_size) != erase_end as usize {
+            return Err(Error::InvalidAddress { address: erase_end });
+        }
+
+        // Execute erasure plan.
+        self.run_erase_plan(&erase_plan, |_| {})?;
+
+        Ok(())
+    }
+
     /// Program the attached flash with `data` starting at `address`.
     ///
     /// Sectors and blocks are erased as required for the new data,
@@ -1029,7 +1063,7 @@ where
 
     /// Work out what combination of erase operations to run to efficiently
     /// erase the specified memory.
-    fn make_erase_plan(&self, address: u32, length: usize) -> Result<ErasePlan> {
+    pub(crate) fn make_erase_plan(&self, address: u32, length: usize) -> Result<ErasePlan> {
         log::debug!(
             "Creating erase plan for address={} length={}",
             address,
@@ -1264,4 +1298,189 @@ enum Command {
     ReadBlockLock = 0x3D,
     GlobalBlockLock = 0x7E,
     GlobalBlockUnlock = 0x98,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::FakeError::Error;
+    use crate::FlashAccess;
+
+    #[derive(thiserror::Error, Debug, PartialEq)]
+    pub enum FakeError {
+        Error(String),
+    }
+    impl From<FakeError> for crate::Error {
+        fn from(err: FakeError) -> crate::Error {
+            crate::Error::Access(err.into())
+        }
+    }
+    impl std::fmt::Display for FakeError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Error(e) => write!(f, "Error: {e}"),
+            }
+        }
+    }
+    struct FakeFlashAccess {}
+
+    impl FlashAccess for FakeFlashAccess {
+        type Error = FakeError;
+
+        fn exchange(&mut self, _data: &[u8]) -> Result<Vec<u8>, Self::Error> {
+            todo!()
+        }
+    }
+
+    struct MockFlashAccess {
+        pub input: Vec<Vec<u8>>,
+        pub output: Vec<Vec<u8>>,
+        pub iteration: usize,
+    }
+    impl MockFlashAccess {
+        pub fn new(responses: Vec<Vec<u8>>) -> Self {
+            Self {
+                input: Vec::new(),
+                output: responses,
+                iteration: 0,
+            }
+        }
+    }
+
+    impl FlashAccess for MockFlashAccess {
+        type Error = FakeError;
+
+        fn exchange(&mut self, data: &[u8]) -> Result<Vec<u8>, Self::Error> {
+            self.input.push(data.to_vec());
+            if self.iteration >= self.output.len() {
+                panic!("No more responses: {}", self.iteration);
+            }
+            let result = self.output[self.iteration].clone();
+            self.iteration += 1;
+            Ok(result)
+        }
+    }
+
+    mod make_erase_plan {
+        use crate::erase_plan::ErasePlan;
+        use crate::tests::{FakeFlashAccess};
+        use crate::Flash;
+
+        #[test]
+        fn should_return_manual_erase_plan_based_on_erase_size() {
+            let mut fake = FakeFlashAccess {};
+
+            let mut flash = Flash::new(&mut fake);
+            flash.set_erase_size(2048);
+            let result = flash.make_erase_plan(0, 4096);
+            assert!(result.is_ok(), "Result was not Ok: {:?}", result);
+            let erase_plan = result.unwrap();
+            assert_eq!(
+                erase_plan,
+                ErasePlan {
+                    0: vec![(32, 2048, 0, None), (32, 2048, 2048, None)],
+                }
+            )
+        }
+
+        #[test]
+        fn should_return_error_if_size_not_set() {
+            let mut fake = FakeFlashAccess {};
+
+            let flash = Flash::new(&mut fake);
+            let result = flash.make_erase_plan(0, 4096);
+            assert!(result.is_err(), "Result was not Err: {:?}", result);
+            assert_eq!(
+                result.unwrap_err().to_string(),
+                "No erase instruction has been specified."
+            );
+        }
+    }
+
+    mod run_erase_plan {
+        use crate::erase_plan::ErasePlan;
+        use crate::tests::MockFlashAccess;
+        use crate::Flash;
+
+        #[test]
+        fn should_run_erase_size() {
+            let mut mock = MockFlashAccess::new(vec![
+                vec![0x00],
+                vec![0x00, 0x00, 0x00, 0x00],
+                vec![0x00, 0x00],
+            ]);
+
+            let erase_plan = ErasePlan {
+                0: vec![(32, 2048, 0, None)],
+            };
+
+            let mut flash = Flash::new(&mut mock);
+            flash.set_erase_size(2048);
+
+            let result = flash.run_erase_plan(&erase_plan, |_b| {});
+            assert!(result.is_ok(), "Result was not Ok: {:?}", result);
+            assert_eq!(
+                mock.input,
+                vec![vec![0x06], vec![0x20, 0x00, 0x00, 0x00], vec![0x05, 0x00],]
+            );
+        }
+    }
+    mod erase_sectors {
+        use crate::tests::MockFlashAccess;
+        use crate::Flash;
+
+        #[test]
+        fn should_erase_sectors() {
+            let mut mock = MockFlashAccess::new(vec![
+                vec![0x00],
+                vec![0x00, 0x00, 0x00, 0x00],
+                vec![0x00, 0x00],
+                vec![0x00],
+                vec![0x00, 0x00, 0x00, 0x00],
+                vec![0x00, 0x00],
+            ]);
+
+            let mut flash = Flash::new(&mut mock);
+            flash.set_erase_size(2048);
+            let result = flash.erase_sectors(0, 4096);
+            assert!(result.is_ok(), "Result was not Ok: {:?}", result);
+            assert_eq!(
+                mock.input,
+                vec![
+                    vec![0x06],
+                    vec![0x20, 0x00, 0x00, 0x00],
+                    vec![0x05, 0x00],
+                    vec![0x06],
+                    vec![0x20, 0x00, 0x08, 0x00],
+                    vec![0x05, 0x00],
+                ]
+            );
+        }
+
+        #[test]
+        fn should_return_error_if_miss_aligned_start() {
+            let mut mock = MockFlashAccess::new(vec![]);
+
+            let mut flash = Flash::new(&mut mock);
+            flash.set_erase_size(2048);
+            let result = flash.erase_sectors(5, 4096);
+            assert!(result.is_err(), "Result was not Err: {:?}", result);
+            assert_eq!(
+                result.unwrap_err().to_string(),
+                "Address out of range for memory: 0x00000005."
+            );
+        }
+        #[test]
+        fn should_return_error_if_miss_aligned_end() {
+            let mut mock = MockFlashAccess::new(vec![]);
+
+            let mut flash = Flash::new(&mut mock);
+            flash.set_erase_size(2048);
+            let result = flash.erase_sectors(0, 123);
+            assert!(result.is_err(), "Result was not Err: {:?}", result);
+            assert_eq!(
+                result.unwrap_err().to_string(),
+                "Address out of range for memory: 0x0000007B."
+            );
+        }
+    }
 }
