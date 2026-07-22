@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::time::Duration;
 
 #[derive(Clone, Debug)]
+#[allow(unused)]
 pub(crate) struct SFDPHeader {
     pub nph: usize,
     pub major: u8,

@@ -9,7 +9,7 @@ description = "SPI flash memory interface crate"
 
 [dependencies]
 log = "0.4.17"
-num_enum = { version = "0.5.7", default_features = false }
+num_enum = { version = "0.5.7", default-features = false }
 jep106 = { version = "0.2.6", optional = true }
 anyhow = { version = "1.0.58", optional = true }
 thiserror = { version = "1.0.31", optional = true }
