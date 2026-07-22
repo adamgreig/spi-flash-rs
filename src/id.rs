@@ -21,9 +21,9 @@ impl FlashID {
         let (bank, id) = (self.manufacturer_bank, self.manufacturer_id & 0x7F);
         match jep106::JEP106Code::new(bank, id).get() {
             // Winbond acquired NEXCOM and so the ID 0xEF is commonly used for Winbond memory.
-            Some(mfn) if mfn == "NEXCOM" => Some("Winbond/NEXCOM"),
+            Some("NEXCOM") => Some("Winbond/NEXCOM"),
             // GigaDevice flash doesn't use a continuation code, so 0xC8 appears as Apple Computer.
-            Some(mfn) if mfn == "Apple Computer" => Some("Apple Computer/GigaDevice Semiconductor"),
+            Some("Apple Computer") => Some("Apple Computer/GigaDevice Semiconductor"),
             Some(mfn) => Some(mfn),
             None => None,
         }

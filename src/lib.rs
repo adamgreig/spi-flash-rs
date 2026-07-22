@@ -727,7 +727,7 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Writing");
-        self.program_data_cb(address, &data, |n| pb.set_position(n as u64))?;
+        self.program_data_cb(address, data, |n| pb.set_position(n as u64))?;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()
@@ -1020,9 +1020,11 @@ where
     }
 
     /// Checks if `address` and `length` together are permissible:
+    ///
     /// * `address` must not exceed the current number of address bytes
     /// * Both `address` and `address+length` must be within the flash memory bounds,
     ///   if the capacity is known.
+    ///
     /// Returns either Err(Error::InvalidAddress) or Ok(()).
     fn check_address_length(&self, address: u32, length: usize) -> Result<()> {
         log::trace!("Checking address={:08X} length={}", address, length);
@@ -1149,8 +1151,8 @@ where
         data: &[u8],
         erase_plan: &ErasePlan,
     ) -> Result<Vec<u8>> {
-        let preamble = self.read_erase_preamble(address, &erase_plan)?;
-        let postamble = self.read_erase_postamble(address, data.len(), &erase_plan)?;
+        let preamble = self.read_erase_preamble(address, erase_plan)?;
+        let postamble = self.read_erase_postamble(address, data.len(), erase_plan)?;
         let mut full_data = preamble;
         full_data.extend(data);
         full_data.extend(&postamble);
@@ -1195,7 +1197,7 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Erasing");
-        self.run_erase_plan(&plan, |n| pb.set_position(n as u64))?;
+        self.run_erase_plan(plan, |n| pb.set_position(n as u64))?;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()
@@ -1862,7 +1864,7 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Writing");
-        self.program_data_cb(address, &data, |n| pb.set_position(n as u64)).await?;
+        self.program_data_cb(address, data, |n| pb.set_position(n as u64)).await?;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()
@@ -2160,9 +2162,11 @@ where
     }
 
     /// Checks if `address` and `length` together are permissible:
+    ///
     /// * `address` must not exceed the current number of address bytes
     /// * Both `address` and `address+length` must be within the flash memory bounds,
     ///   if the capacity is known.
+    ///
     /// Returns either Err(Error::InvalidAddress) or Ok(()).
     fn check_address_length(&self, address: u32, length: usize) -> Result<()> {
         log::trace!("Checking address={:08X} length={}", address, length);
@@ -2289,8 +2293,8 @@ where
         data: &[u8],
         erase_plan: &ErasePlan,
     ) -> Result<Vec<u8>> {
-        let preamble = self.read_erase_preamble(address, &erase_plan).await?;
-        let postamble = self.read_erase_postamble(address, data.len(), &erase_plan).await?;
+        let preamble = self.read_erase_preamble(address, erase_plan).await?;
+        let postamble = self.read_erase_postamble(address, data.len(), erase_plan).await?;
         let mut full_data = preamble;
         full_data.extend(data);
         full_data.extend(&postamble);
@@ -2335,7 +2339,7 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Erasing");
-        self.run_erase_plan(&plan, |n| pb.set_position(n as u64)).await?;
+        self.run_erase_plan(plan, |n| pb.set_position(n as u64)).await?;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()

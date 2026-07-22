@@ -287,7 +287,7 @@ impl FlashParams {
         );
 
         // Check we have enough data.
-        if data.len() % 4 != 0 {
+        if !data.len().is_multiple_of(4) {
             log::error!("SFPD data is not a multiple of 4 bytes.");
             return Err(Error::InvalidSFDPParams);
         } else if data.len() < 9 * 4 {
