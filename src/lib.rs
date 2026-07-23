@@ -1600,9 +1600,17 @@ where
     ///
     /// This method is similar to the `read()` method, except it calls the provided
     /// callback function at regular intervals with the number of bytes read so far.
-    pub async fn read_cb<F: Fn(usize)>(&mut self, address: u32, length: usize, cb: F) -> Result<Vec<u8>> {
+    pub async fn read_cb<F: Fn(usize)>(
+        &mut self,
+        address: u32,
+        length: usize,
+        cb: F,
+    ) -> Result<Vec<u8>> {
         self.check_address_length(address, length)?;
-        let chunk_size = usize::min(self.max_len - self.address_bytes as usize - 2, usize::max(128, length / 128));
+        let chunk_size = usize::min(
+            self.max_len - self.address_bytes as usize - 2,
+            usize::max(128, length / 128),
+        );
         let start = address as usize;
         let end = start + length;
         let mut data = Vec::new();
@@ -1633,7 +1641,9 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Reading");
-        let result = self.read_cb(address, length, |n| pb.set_position(n as u64)).await;
+        let result = self
+            .read_cb(address, length, |n| pb.set_position(n as u64))
+            .await;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()
@@ -1724,7 +1734,8 @@ where
         // Optionally do a readback to verify all written data.
         if verify {
             let programmed = self.read(start_addr, full_data.len()).await?;
-            self.verify_readback(start_addr, &full_data, &programmed).await?;
+            self.verify_readback(start_addr, &full_data, &programmed)
+                .await?;
         }
 
         Ok(())
@@ -1734,7 +1745,12 @@ where
     ///
     /// This is identical to `program()`, except it also draws progress bars to the terminal.
     #[cfg(feature = "std")]
-    pub async fn program_progress(&mut self, address: u32, data: &[u8], verify: bool) -> Result<()> {
+    pub async fn program_progress(
+        &mut self,
+        address: u32,
+        data: &[u8],
+        verify: bool,
+    ) -> Result<()> {
         self.check_address_length(address, data.len())?;
 
         // Work out a good erasure plan.
@@ -1753,7 +1769,8 @@ where
         // Optionally do a readback to verify all written data.
         if verify {
             let programmed = self.read_progress(start_addr, full_data.len()).await?;
-            self.verify_readback(start_addr, &full_data, &programmed).await?;
+            self.verify_readback(start_addr, &full_data, &programmed)
+                .await?;
         }
 
         Ok(())
@@ -1865,7 +1882,9 @@ where
     /// Returns the legacy device ID.
     pub async fn release_power_down(&mut self) -> Result<u8> {
         log::debug!("Sending Release Powerdown command");
-        let data = self.exchange(Command::ReleasePowerdown, &[0, 0, 0], 1).await?;
+        let data = self
+            .exchange(Command::ReleasePowerdown, &[0, 0, 0], 1)
+            .await?;
         Ok(data[0])
     }
 
@@ -1890,7 +1909,8 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Writing");
-        self.program_data_cb(address, data, |n| pb.set_position(n as u64)).await?;
+        self.program_data_cb(address, data, |n| pb.set_position(n as u64))
+            .await?;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()
@@ -1943,7 +1963,8 @@ where
         }
 
         for page_data in data.chunks(page_size) {
-            self.page_program(address + total_bytes as u32, page_data).await?;
+            self.page_program(address + total_bytes as u32, page_data)
+                .await?;
             total_bytes += page_data.len();
             cb(total_bytes);
         }
@@ -2106,19 +2127,22 @@ where
         self.command(we_opcode).await?;
         let s1 = self.read_status1().await?;
         log::debug!("Set WEL, s1 now: {:02X}", s1.0);
-        self.write(Command::WriteStatusRegister1, &[status1.0]).await
+        self.write(Command::WriteStatusRegister1, &[status1.0])
+            .await
     }
 
     /// Write status register 2.
     pub async fn write_status2(&mut self, status2: StatusRegister2) -> Result<()> {
         self.write_enable().await?;
-        self.write(Command::WriteStatusRegister2, &[status2.0]).await
+        self.write(Command::WriteStatusRegister2, &[status2.0])
+            .await
     }
 
     /// Write status register 3.
     pub async fn write_status3(&mut self, status3: StatusRegister3) -> Result<()> {
         self.write_enable().await?;
-        self.write(Command::WriteStatusRegister3, &[status3.0]).await
+        self.write(Command::WriteStatusRegister3, &[status3.0])
+            .await
     }
 
     /// Check if the device is currently busy performing an operation.
@@ -2132,7 +2156,9 @@ where
         if let Some(params) = self.params {
             if let Some(busy_poll_flag) = params.busy_poll_flag {
                 if busy_poll_flag {
-                    let fsr = self.exchange(Command::ReadFlagStatusRegister, &[], 1).await?[0];
+                    let fsr = self
+                        .exchange(Command::ReadFlagStatusRegister, &[], 1)
+                        .await?[0];
                     return Ok(fsr & 0b1000_0000 == 0);
                 }
             }
@@ -2160,7 +2186,8 @@ where
         while n < len {
             let readlen = (len - n).min(self.max_len - 4);
             let bytes = (addr + n as u32).to_be_bytes();
-            let r = self.exchange(Command::ReadSFDPRegister, &bytes[1..], 1 + readlen)
+            let r = self
+                .exchange(Command::ReadSFDPRegister, &bytes[1..], 1 + readlen)
                 .await
                 .map(|data| data[1..].to_vec())?;
             n += r.len();
@@ -2335,7 +2362,9 @@ where
         erase_plan: &ErasePlan,
     ) -> Result<Vec<u8>> {
         let preamble = self.read_erase_preamble(address, erase_plan).await?;
-        let postamble = self.read_erase_postamble(address, data.len(), erase_plan).await?;
+        let postamble = self
+            .read_erase_postamble(address, data.len(), erase_plan)
+            .await?;
         let mut full_data = preamble;
         full_data.extend(data);
         full_data.extend(&postamble);
@@ -2380,7 +2409,8 @@ where
                 .progress_chars(Self::DATA_PROGRESS_CHARS),
         );
         pb.set_message("Erasing");
-        self.run_erase_plan(plan, |n| pb.set_position(n as u64)).await?;
+        self.run_erase_plan(plan, |n| pb.set_position(n as u64))
+            .await?;
         pb.set_style(
             ProgressStyle::with_template(Self::DATA_FINISHED_TPL)
                 .unwrap()
@@ -2547,7 +2577,7 @@ mod tests {
 
     mod make_erase_plan {
         use crate::erase_plan::ErasePlan;
-        use crate::tests::{FakeFlashAccess};
+        use crate::tests::FakeFlashAccess;
         use crate::Flash;
 
         #[test]
