@@ -1258,6 +1258,11 @@ where
 pub trait AsyncFlashAccess {
     type Error;
 
+    /// Maximum length of an SPI transaction in bytes, or None if unlimited.
+    ///
+    /// Must be at least 24 if specified.
+    const MAX_LEN: Option<usize>;
+
     /// Assert CS, write all bytes in `data` to the SPI bus, then de-assert CS.
     async fn write(&mut self, data: &[u8]) -> core::result::Result<(), Self::Error> {
         self.exchange(data).await?;
@@ -1281,6 +1286,11 @@ pub trait AsyncFlashAccess {
 /// This struct provides async methods for interacting with common SPI flashes.
 pub struct AsyncFlash<'a, A: AsyncFlashAccess> {
     access: &'a mut A,
+
+    /// Maximum length in bytes of each SPI transaction.
+    ///
+    /// Set from the [AsyncFlashAccess] const.
+    max_len: usize,
 
     /// Once read, ID details are cached.
     id: Option<FlashID>,
@@ -1322,8 +1332,12 @@ where
 
     /// Create a new Flash instance using the given FlashAccess provider.
     pub fn new(access: &'a mut A) -> Self {
+        if let Some(max_len) = A::MAX_LEN {
+            assert!(max_len >= 24);
+        }
         AsyncFlash {
             access,
+            max_len: A::MAX_LEN.unwrap_or(usize::MAX),
             id: None,
             params: None,
             address_bytes: 3,
@@ -1550,10 +1564,17 @@ where
     /// try using `legacy_read()` instead.
     pub async fn read(&mut self, address: u32, length: usize) -> Result<Vec<u8>> {
         self.check_address_length(address, length)?;
-        let mut param = self.make_address(address);
-        // Dummy byte after address.
-        param.push(0);
-        self.exchange(Command::FastRead, &param, length).await
+        let mut n = 0;
+        let mut result = Vec::with_capacity(length);
+        while n < length {
+            let mut param = self.make_address(address + n as u32);
+            param.push(0);
+            let readlen = (length - n).min(self.max_len - param.len() - 1);
+            let r = self.exchange(Command::FastRead, &param, readlen).await?;
+            n += r.len();
+            result.extend(r);
+        }
+        Ok(result)
     }
 
     /// Read `length` bytes of data from the attached flash, starting at `address`.
@@ -1563,20 +1584,25 @@ where
     /// and may be faster for very short reads as it does not require a dummy byte.
     pub async fn legacy_read(&mut self, address: u32, length: usize) -> Result<Vec<u8>> {
         self.check_address_length(address, length)?;
-        let param = self.make_address(address);
-        self.exchange(Command::ReadData, &param, length).await
+        let mut n = 0;
+        let mut result = Vec::with_capacity(length);
+        while n < length {
+            let param = self.make_address(address + n as u32);
+            let readlen = (length - n).min(self.max_len - param.len() - 1);
+            let r = self.exchange(Command::ReadData, &param, readlen).await?;
+            n += r.len();
+            result.extend(r);
+        }
+        Ok(result)
     }
 
     /// Read `length` bytes of data from the attached flash, starting at `address`.
     ///
     /// This method is similar to the `read()` method, except it calls the provided
     /// callback function at regular intervals with the number of bytes read so far.
-    ///
-    /// While `read()` performs a single long SPI exchange, this method performs
-    /// up to 128 separate SPI exchanges to allow progress to be reported.
     pub async fn read_cb<F: Fn(usize)>(&mut self, address: u32, length: usize, cb: F) -> Result<Vec<u8>> {
         self.check_address_length(address, length)?;
-        let chunk_size = usize::max(1024, length / 128);
+        let chunk_size = usize::min(self.max_len - self.address_bytes as usize - 2, usize::max(128, length / 128));
         let start = address as usize;
         let end = start + length;
         let mut data = Vec::new();
@@ -1938,21 +1964,26 @@ where
     /// Note that this does *not* erase the flash beforehand;
     /// use `program()` for a higher-level erase-program-verify interface.
     pub async fn page_program(&mut self, address: u32, data: &[u8]) -> Result<()> {
-        let mut tx = self.make_address(address);
-        tx.extend(data);
-        self.write_enable().await?;
-        self.exchange(Command::PageProgram, &tx, 0).await?;
-        if let Some(params) = self.params {
-            if let Some(timing) = params.timing {
-                // Only bother sleeping if the expected programming time is greater than 1ms,
-                // otherwise we'll likely have waited long enough just due to round-trip delays.
-                // We always poll the status register at least once to check write completion.
-                if timing.page_prog_time_typ > Duration::from_millis(1) {
-                    self.access.delay(timing.page_prog_time_typ / 2).await;
+        let mut n = 0;
+        while n < data.len() {
+            let mut tx = self.make_address(address + n as u32);
+            let len = (data.len() - n).min(self.max_len - self.address_bytes as usize - 1);
+            tx.extend(&data[n..(n + len)]);
+            n += len;
+            self.write_enable().await?;
+            self.write(Command::PageProgram, &tx).await?;
+            if let Some(params) = self.params {
+                if let Some(timing) = params.timing {
+                    // Only bother sleeping if the expected programming time is greater than 1ms,
+                    // otherwise we'll likely have waited long enough just due to round-trip delays.
+                    // We always poll the status register at least once to check write completion.
+                    if timing.page_prog_time_typ > Duration::from_millis(1) {
+                        self.access.delay(timing.page_prog_time_typ / 2).await;
+                    }
                 }
             }
+            self.wait_while_busy().await?;
         }
-        self.wait_while_busy().await?;
         Ok(())
     }
 
@@ -2124,10 +2155,18 @@ where
     ///
     /// `addr` is always sent as a 24-bit address, regardless of the address_bytes setting.
     pub async fn read_sfdp(&mut self, addr: u32, len: usize) -> Result<Vec<u8>> {
-        let bytes = addr.to_be_bytes();
-        self.exchange(Command::ReadSFDPRegister, &bytes[1..], 1 + len)
-            .await
-            .map(|data| data[1..].to_vec())
+        let mut n = 0;
+        let mut result = Vec::with_capacity(len);
+        while n < len {
+            let readlen = (len - n).min(self.max_len - 4);
+            let bytes = (addr + n as u32).to_be_bytes();
+            let r = self.exchange(Command::ReadSFDPRegister, &bytes[1..], 1 + readlen)
+                .await
+                .map(|data| data[1..].to_vec())?;
+            n += r.len();
+            result.extend(r);
+        }
+        Ok(result)
     }
 
     /// Writes `command` and `data` to the flash memory, then returns `nbytes` of response.
@@ -2137,6 +2176,7 @@ where
         data: &[u8],
         nbytes: usize,
     ) -> Result<Vec<u8>> {
+        assert!(data.len() + nbytes <= self.max_len);
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
         log::trace!("SPI exchange: write {:02X?}, read {} bytes", &tx, nbytes);
