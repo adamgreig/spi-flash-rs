@@ -2176,7 +2176,7 @@ where
         data: &[u8],
         nbytes: usize,
     ) -> Result<Vec<u8>> {
-        assert!(data.len() + nbytes <= self.max_len);
+        assert!(1 + data.len() + nbytes <= self.max_len);
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
         log::trace!("SPI exchange: write {:02X?}, read {} bytes", &tx, nbytes);
@@ -2188,6 +2188,7 @@ where
 
     /// Writes `command` and `data` to the flash memory, without reading the response.
     pub async fn write<C: Into<u8>>(&mut self, command: C, data: &[u8]) -> Result<()> {
+        assert!(1 + data.len() <= self.max_len);
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
         log::trace!("SPI write: {:02X?}", &tx);
