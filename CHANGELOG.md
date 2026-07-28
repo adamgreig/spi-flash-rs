@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-07-28
+
+* Add `AsyncFlashAccess` and `AsyncFlash` with async versions of the normal methods
+* Add sector erase methods (#11)
+
 ## [v0.3.0] - 2022-07-31
 
 * Make `spi-flash` `no-std` compatible (still requires `alloc`).
@@ -32,7 +37,8 @@
 
 * Initial release.
 
-[Unreleased]: https://github.com/adamgreig/spi-flash-rs/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/adamgreig/spi-flash-rs/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/adamgreig/spi-flash-rs/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/adamgreig/spi-flash-rs/compare/v0.2.2...v0.3.0
 [v0.2.2]: https://github.com/adamgreig/spi-flash-rs/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/adamgreig/spi-flash-rs/compare/v0.2.0...v0.2.1
