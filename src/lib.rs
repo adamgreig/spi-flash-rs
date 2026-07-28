@@ -999,7 +999,7 @@ where
     ) -> Result<Vec<u8>> {
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
-        log::trace!("SPI exchange: write {:02X?}, read {} bytes", &tx, nbytes);
+        log::trace!("SPI exchange: write {:02X?}, read {} bytes", tx, nbytes);
         tx.extend(alloc::vec![0u8; nbytes]);
         let rx = self.access.exchange(&tx)?;
         log::trace!("SPI exchange: read {:02X?}", &rx[1 + data.len()..]);
@@ -1010,7 +1010,7 @@ where
     pub fn write<C: Into<u8>>(&mut self, command: C, data: &[u8]) -> Result<()> {
         let mut tx = alloc::vec![command.into()];
         tx.extend(data);
-        log::trace!("SPI write: {:02X?}", &tx);
+        log::trace!("SPI write: {:02X?}", tx);
         self.access.write(&tx)?;
         Ok(())
     }
