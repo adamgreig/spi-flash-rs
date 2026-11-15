@@ -8,6 +8,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 #[cfg(feature = "std")]
 use std::time::Instant;
 
+extern crate alloc;
+use alloc::vec::Vec;
+
 /// Async trait for objects which provide access to SPI flash.
 ///
 /// Provides the same methods as [FlashAccess] but async.
