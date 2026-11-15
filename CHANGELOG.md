@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+## [v0.4.1] - 2026-11-15
+* Maintain no-std support by using `alloc::Vec` for new `AsyncFlashAccess`
+
 ## [v0.4.0] - 2026-07-28
 
 * Add `AsyncFlashAccess` and `AsyncFlash` with async versions of the normal methods
@@ -37,7 +40,8 @@
 
 * Initial release.
 
-[Unreleased]: https://github.com/adamgreig/spi-flash-rs/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/adamgreig/spi-flash-rs/compare/v0.4.1...HEAD
+[v0.4.1]: https://github.com/adamgreig/spi-flash-rs/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/adamgreig/spi-flash-rs/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/adamgreig/spi-flash-rs/compare/v0.2.2...v0.3.0
 [v0.2.2]: https://github.com/adamgreig/spi-flash-rs/compare/v0.2.1...v0.2.2
